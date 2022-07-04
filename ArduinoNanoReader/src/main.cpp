@@ -25,8 +25,8 @@ Message         message;                        // object for exchanging data be
 
 #pragma region RS485_SETTINGS
 
-uint8_t         rs_rx_pin = 0;                  // RS485 receive pin
-uint8_t         rs_tx_pin = 1;                  // RS485 transmit pin
+uint8_t         rs_rx_pin = 4;                  // RS485 receive pin
+uint8_t         rs_tx_pin = 5;                  // RS485 transmit pin
 long            rs_baud   = 9600;               // RS485 baud rate (speed)
 SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // object for receiving and transmitting data via RS485
 
@@ -92,28 +92,43 @@ void loop()
 
         if (message.device_id != device_id ||
             message.card_id != w_last_card)
+        {
+#ifdef DEBUG
+            Serial.println("message not handled (another device)");
+#endif //DEBUG
             return;
+        }
 
         if (message.state_id == state_ok)
         {
-            
+#ifdef DEBUG
+            Serial.println("ok 200: it's okay");
+#endif //DEBUG
         }
         else if (message.state_id == state_connect_error)
         {
-
+#ifdef DEBUG
+            Serial.println("error 97: server connection not established");
+#endif //DEBUG
         }
         else if (message.state_id == state_json_error)
         {
-
+#ifdef DEBUG
+            Serial.println("error 98: serialization failed");
+#endif //DEBUG
         }
         else if (message.state_id == state_timeout_error)
         {
-
+#ifdef DEBUG
+            Serial.println("error 99: response timeout");
+#endif //DEBUG
         }
         // unknown state
         else
         {
-
+#ifdef DEBUG
+            Serial.println("unknown state");
+#endif //DEBUG
         }
 
         message.clean();  // ???
