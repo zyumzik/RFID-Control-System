@@ -47,15 +47,22 @@ unsigned long   w_last_card;                    // last read card id
 
 #pragma region SERVER_STATES
 
+const uint8_t   state_denied        = 0;        // access denied
 const uint8_t   state_no_response   = 97;       // no response from server
 const uint8_t   state_json_error    = 98;       // json deserialization error
 const uint8_t   state_timeout_error = 99;       // server connection timeout
-const uint8_t   state_ok            = 200;      // accessed
+const uint8_t   state_ok            = 1;        // accessed
 
 #pragma endregion
 
 // send message to ArduinoUNO
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
+
+// reverses code by bit
+unsigned long wiegandToDecimal(unsigned long code);
+
+// handle response from server
+void handleResponse();
 
 // makes sound for beepMs time and delayMs delay
 void wiegandBeep(unsigned long beepMs, unsigned long delayMs);
@@ -87,15 +94,79 @@ void loop()
     // received message from ArduinoUNO
     if (easy_transfer.receiveData())
     {
+        handleResponse();
+    }
+
+    // read a card
+    if (millis() >= read_last + read_delay)
+    {
+        if (wiegand.available())
+        {
+            read_last = millis();
+            w_last_card = wiegandToDecimal(wiegand.getCode());
+
+#ifdef DEBUG
+            Serial.println("read card id: " + String(w_last_card));
+#endif //DEBUG
+
+            sendData(device_id, w_last_card, 0, 0);
+        }
+    }
+}
+
+#pragma region FUNCTION_DESCRIPTION
+
+void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
+{
+#ifdef DEBUG
+    Serial.println("send data:");
+    message.print();
+    Serial.println("*****\n");
+#endif // DEBUG
+
+    message.set(device_id, card_id, state_id, other_id);
+
+    easy_transfer.sendData();
+
+    message.clean();
+}
+
+unsigned long wiegandToDecimal(unsigned long code)
+{
+    unsigned long code_decimal = 0;
+    int t = 0;
+    long unsigned int a = 0, b = 0;
+    while(code > 0)
+    {
+        t++;
+        a = code / 256;
+        b = code - a * 256;
+        code = a;
+        code_decimal = code_decimal * 256 + b;
+    }
+    return code_decimal;
+}
+
+void handleResponse()
+{
 #ifdef DEBUG
         Serial.println("received message: ");
         message.print();
+        Serial.println("*****\n");
 #endif // DEBUG
 
-        if (message.device_id != device_id || message.card_id != w_last_card)
+        // base data checking (if message was for this device)
+        if (message.device_id != device_id)
         {
 #ifdef DEBUG
-            Serial.println("message not handled (another device)");
+            Serial.println("message not handled: another device");
+#endif //DEBUG
+            return;
+        }
+        else if (message.card_id != w_last_card)
+        {
+#ifdef DEBUG
+            Serial.println("message not handled: another card");
 #endif //DEBUG
             return;
         }
@@ -103,8 +174,18 @@ void loop()
         if (message.state_id == state_ok)
         {
 #ifdef DEBUG
-            Serial.println("ok 200: it's okay");
+            Serial.println("state 1: it's okay");
 #endif //DEBUG
+        }
+        else if (message.state_id == state_denied)
+        {
+#ifdef DEBUG
+            Serial.println("state 0: access denied");
+#endif //DEBUG
+            for (int i = 0; i < 5; i++)
+            {
+                wiegandBlink(400, 100);
+            }
         }
         else if (message.state_id == state_no_response)
         {
@@ -133,39 +214,6 @@ void loop()
         }
 
         message.clean();  // ???
-    }
-
-
-    // read a card
-    if (millis() >= read_last + read_delay)
-    {
-        if (wiegand.available())
-        {
-            read_last = millis();
-            w_last_card = wiegand.getCode();
-
-#ifdef DEBUG
-            Serial.println("read card id: " + String(w_last_card));
-#endif //DEBUG
-
-            sendData(device_id, w_last_card, 0, 0);
-        }
-    }
-}
-
-#pragma region FUNCTION_DESCRIPTION
-
-void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
-{
-    message.set(device_id, card_id, state_id, other_id);
-    easy_transfer.sendData();
-
-    message.clean();
-
-#ifdef DEBUG
-    Serial.println("send data:");
-    message.print();
-#endif // DEBUG
 }
 
 void wiegandBeep(unsigned long beepMs, unsigned long delayMs)
