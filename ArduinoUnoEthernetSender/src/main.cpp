@@ -5,6 +5,7 @@
  Author:	Dobychyn Danil
 */
 
+#include <Arduino.h>
 #include <ArduinoJson.hpp>
 #include <ArduinoJson.h>
 #include <EthernetClient.h>
@@ -40,8 +41,6 @@ EthernetClient  client;                         // object for connecting etherne
 byte            mac[] = { 0xFF, 0xFF, 
                           0xFF, 0xFF, 
                           0xFF, 0xFF };         // mac address of this device. must be unique in local network
-IPAddress       static_ip(192, 168, 0, 0);      // static ip address. used if DHCP does not work
-IPAddress       my_dns   (192, 168, 0, 0);      // dns server address. also used if DHCP does not work
 uint8_t         reconnect_delay = 20;           // delay for try to reconnect ethernet
 
 #pragma endregion
@@ -53,22 +52,19 @@ char*           server_name =
                 "skdmk.fd.mk.ua";               // server address
 String          server_request = 
                 "GET /skd.mk/baseadd.php?";     // GET request address
-unsigned long   server_send_read_delay  = 1;    // delay between receiving and sending data to server
-unsigned long   server_receive_wait     = 600;  // time for waiting response from server
-uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
-unsigned long   server_retry_delay      = 5;    // delay between retries of receiving response from server
-unsigned int    server_max_retries      = 10;   // amount of retries to receive response from server
-unsigned int    server_retry_counter    = 0;    // counter for receive retried
+// smart receive
+unsigned long   server_receive_max_wait = 600;  // time for waiting response from server
+uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma endregion
 
-#pragma region SERVER_RESPONSE_STATES
+#pragma region SERVER_STATES
 
-const uint8_t   state_ok            = 0;        // accessed
-const uint8_t   state_connect_error = 97;       // server connection error
+const uint8_t   state_no_response   = 97;       // no response from server
 const uint8_t   state_json_error    = 98;       // json deserialization error
-const uint8_t   state_timeout_error = 99;       // server response timeout error
+const uint8_t   state_timeout_error = 99;       // server connection timeout
+const uint8_t   state_ok            = 200;      // accessed
 
 #pragma endregion
 
@@ -87,11 +83,7 @@ void setup()
         String("\nserial baud speed: ") + serial_baud);
 #endif //DEBUG
 
-#pragma region ETHERNET_CONNECTION
-
     ethernetConnect();
-
-#pragma endregion
 }
 
 void loop()
@@ -119,9 +111,9 @@ bool ethernetConnect()
 #ifdef DEBUG
         Serial.println("connection via DHCP is not established");
         Serial.println("trying to reconnect...");
+#endif //DEBUG
         delay(reconnect_delay);
         ethernetConnect();
-#endif //DEBUG
     }
 
 #ifdef DEBUG
@@ -150,19 +142,25 @@ void sendServer()
         client.println();
         client.println();
 
-        delay(server_send_read_delay);
-
         receiveServer();
     }
-    // try to reconnect
     else
     {
 #ifdef DEBUG
         Serial.println("client connect error");
         Serial.println("ethernet status: " + int(Ethernet._state));
+        Serial.println(String("all statuses::") + 
+                    "\nsock_close: " + Sock_CLOSE + 
+                    "\nsock_connect: " + Sock_CONNECT + 
+                    "\nsock_discon: " + Sock_DISCON + 
+                    "\nsock_listen: " + Sock_LISTEN + 
+                    "\nsock_open: " + Sock_OPEN + 
+                    "\nsock_recv: " + Sock_RECV + 
+                    "\nsock_send: " + Sock_SEND + 
+                    "\nsock_send_keep: " + Sock_SEND_KEEP + 
+                    "\nsock_send_mac: " + Sock_SEND_MAC);
 #endif //DEBUG
-        server_retry_counter = 0;
-        delay(server_retry_delay);
+        sendData(message.device_id, message.card_id, state_timeout_error, 0);
     }
 
     client.stop();
@@ -171,9 +169,13 @@ void sendServer()
 // receive response from server
 void receiveServer()
 {
+    // smart receive waiting
     server_receive_counter = 0;
-    while (server_receive_counter != server_receive_wait)
+    while (server_receive_counter < server_receive_max_wait)
     {
+        if (client.available())
+            break;
+
         delay(1);
         server_receive_counter++;
     }
@@ -216,7 +218,7 @@ void receiveServer()
         sendData(
             message.device_id,
             message.card_id,
-            state_timeout_error,
+            state_no_response,
             0);
     }
 }

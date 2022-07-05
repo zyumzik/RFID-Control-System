@@ -6,7 +6,7 @@
 struct Message
 {
 	uint_fast16_t	device_id = DFLT_MSG_VAL;	// reader device id
-	uint32_t		card_id = DFLT_MSG_VAL;	// read card id
+	uint32_t		card_id = DFLT_MSG_VAL;	    // read card id
 	uint8_t			state_id = DFLT_MSG_VAL;	// message state
 	uint8_t			other_id = DFLT_MSG_VAL;	// other information
 

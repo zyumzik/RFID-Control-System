@@ -43,12 +43,12 @@ unsigned long   w_last_card;                    // last read card id
 
 #pragma endregion
 
-#pragma region SERVER_RESPONSE_STATES
+#pragma region SERVER_STATES
 
-const uint8_t   state_ok            = 0;        // accessed
-const uint8_t   state_connect_error = 97;       // server connection error
+const uint8_t   state_no_response   = 97;       // no response from server
 const uint8_t   state_json_error    = 98;       // json deserialization error
-const uint8_t   state_timeout_error = 99;       // server response timeout error
+const uint8_t   state_timeout_error = 99;       // server connection timeout
+const uint8_t   state_ok            = 200;      // accessed
 
 #pragma endregion
 
@@ -90,8 +90,7 @@ void loop()
         message.print();
 #endif // DEBUG
 
-        if (message.device_id != device_id ||
-            message.card_id != w_last_card)
+        if (message.device_id != device_id || message.card_id != w_last_card)
         {
 #ifdef DEBUG
             Serial.println("message not handled (another device)");
@@ -105,22 +104,22 @@ void loop()
             Serial.println("ok 200: it's okay");
 #endif //DEBUG
         }
-        else if (message.state_id == state_connect_error)
+        else if (message.state_id == state_no_response)
         {
 #ifdef DEBUG
-            Serial.println("error 97: server connection not established");
+            Serial.println("error 97: no response from server");
 #endif //DEBUG
         }
         else if (message.state_id == state_json_error)
         {
 #ifdef DEBUG
-            Serial.println("error 98: serialization failed");
+            Serial.println("error 98: json error");
 #endif //DEBUG
         }
         else if (message.state_id == state_timeout_error)
         {
 #ifdef DEBUG
-            Serial.println("error 99: response timeout");
+            Serial.println("error 99: server connect timeout");
 #endif //DEBUG
         }
         // unknown state
