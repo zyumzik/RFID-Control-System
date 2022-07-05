@@ -5,6 +5,7 @@
  Author:	Dobychyn Danil
 */
 
+#include <Arduino.h>
 #include <EasyTransfer.h>
 #include <Message.h>
 #include <SoftwareSerial.h>
@@ -18,6 +19,7 @@ unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   device_id       = 801;          // unique ID of reader device
 unsigned long   read_delay      = 250;          // reading card delay
+unsigned long   read_last       = 0;            // last read card time
 EasyTransfer    easy_transfer;                  // object for exchanging data between RS485
 Message         message;                        // object for exchanging data between ArduinoMega and ArduinoUno
 
@@ -133,18 +135,21 @@ void loop()
         message.clean();  // ???
     }
 
+
     // read a card
-    if (wiegand.available())
+    if (millis() >= read_last + read_delay)
     {
-        w_last_card = wiegand.getCode();
+        if (wiegand.available())
+        {
+            read_last = millis();
+            w_last_card = wiegand.getCode();
 
 #ifdef DEBUG
-        Serial.println("read card id: " + String(w_last_card));
+            Serial.println("read card id: " + String(w_last_card));
 #endif //DEBUG
-        
-        sendData(device_id, w_last_card, 0, 0);
 
-        delay(read_delay);
+            sendData(device_id, w_last_card, 0, 0);
+        }
     }
 }
 
