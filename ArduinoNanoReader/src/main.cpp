@@ -20,6 +20,7 @@ unsigned long   serial_baud     = 115200;       // serial baud speed
 unsigned long   device_id       = 801;          // unique ID of reader device
 unsigned long   read_delay      = 250;          // reading card delay
 unsigned long   read_last       = 0;            // last read card time
+unsigned long   handle_delay    = 250;          // handle received response delay (for skipping default wiegand blink and beep)
 EasyTransfer    easy_transfer;                  // object for exchanging data between RS485
 Message         message;                        // object for exchanging data between ArduinoMega and ArduinoUno
 
@@ -48,6 +49,7 @@ unsigned long   w_last_card;                    // last read card id
 #pragma region SERVER_STATES
 
 const uint8_t   state_denied        = 0;        // access denied
+const uint8_t   state_request_error = 96;       // wrong server request 
 const uint8_t   state_no_response   = 97;       // no response from server
 const uint8_t   state_json_error    = 98;       // json deserialization error
 const uint8_t   state_timeout_error = 99;       // server connection timeout
@@ -76,7 +78,8 @@ void setup()
     Serial.begin(serial_baud);
     while (!Serial);
     Serial.println(
-        String("start working...") + 
+        String("Arduino Nano AT328 RFID-WG Reader") +
+        String("\nstart working...") + 
         String("\nprogram version: ") + program_version +
         String("\nserial baud speed: ") + serial_baud);
 #endif //DEBUG
@@ -109,7 +112,12 @@ void loop()
             Serial.println("read card id: " + String(w_last_card));
 #endif //DEBUG
 
-            sendData(device_id, w_last_card, 0, 0);
+            sendData(
+                device_id, 
+                w_last_card, 
+                0, 
+                0
+            );
         }
     }
 }
@@ -118,13 +126,13 @@ void loop()
 
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
 {
+    message.set(device_id, card_id, state_id, other_id);
+
 #ifdef DEBUG
     Serial.println("send data:");
     message.print();
     Serial.println("*****\n");
 #endif // DEBUG
-
-    message.set(device_id, card_id, state_id, other_id);
 
     easy_transfer.sendData();
 
@@ -170,14 +178,10 @@ void handleResponse()
 #endif //DEBUG
             return;
         }
+        
+        delay(handle_delay);
 
-        if (message.state_id == state_ok)
-        {
-#ifdef DEBUG
-            Serial.println("state 1: it's okay");
-#endif //DEBUG
-        }
-        else if (message.state_id == state_denied)
+        if (message.state_id == state_denied)
         {
 #ifdef DEBUG
             Serial.println("state 0: access denied");
@@ -186,6 +190,18 @@ void handleResponse()
             {
                 wiegandBlink(400, 100);
             }
+        }
+        else if (message.state_id == state_ok)
+        {
+#ifdef DEBUG
+            Serial.println("state 1: it's okay");
+#endif //DEBUG
+        }
+        else if (message.state_id == state_request_error)
+        {
+#ifdef DEBUG
+            Serial.println("error 96: invalid server request");
+#endif //DEBUG
         }
         else if (message.state_id == state_no_response)
         {

@@ -62,6 +62,7 @@ uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 #pragma region SERVER_STATES
 
 const uint8_t   state_denied        = 0;        // access denied
+const uint8_t   state_request_error = 96;       // wrong server request 
 const uint8_t   state_no_response   = 97;       // no response from server
 const uint8_t   state_json_error    = 98;       // json deserialization error
 const uint8_t   state_timeout_error = 99;       // server connection timeout
@@ -91,7 +92,8 @@ void setup()
     Serial.begin(serial_baud);
     while (!Serial);
     Serial.println(
-        String("start working...") + 
+        String("Arduino Uno Ethernet Sender") +
+        String("\nstart working...") + 
         String("\nprogram version: ") + program_version +
         String("\nserial baud speed: ") + serial_baud);
 #endif //DEBUG
@@ -113,7 +115,7 @@ void loop()
     }
 }
 
-#pragma region FUNCTIONS_DESCRIPTION
+#pragma region FUNCTION_DESCRIPTION
 
 bool ethernetConnect()
 {
@@ -145,6 +147,7 @@ bool ethernetConnect()
         Serial.print(Ethernet.subnetMask()[i]);
         Serial.print(".");
     }
+    Serial.println("\n*****\n");
 #endif //DEBUG
 
     return true;
@@ -187,6 +190,12 @@ void sendServer()
             Serial.println("invalid request, request not sent");
 #endif //DEBUG
             client.stop();
+            sendData(
+                message.device_id,
+                message.card_id,
+                state_request_error,
+                0
+            );
             return;
         }
 
@@ -211,7 +220,12 @@ void sendServer()
                     "\nsock_send_keep: " + Sock_SEND_KEEP + 
                     "\nsock_send_mac: " + Sock_SEND_MAC);
 #endif //DEBUG
-        sendData(message.device_id, message.card_id, state_timeout_error, 0);
+        sendData(
+            message.device_id, 
+            message.card_id, 
+            state_timeout_error, 
+            0
+        );
         if (ethernetConnect())
             return;
     }
@@ -250,7 +264,8 @@ void receiveServer()
                 message.device_id, 
                 message.card_id, 
                 state_json_error, 
-                0);
+                0
+            );
         }
         // successfully received response from server
         else
@@ -273,7 +288,8 @@ void receiveServer()
                 json["kod"].as<uint_fast16_t>(),
                 json["id"].as<uint32_t>(),
                 json["status"].as<uint8_t>(),
-                0);
+                0
+            );
         }
     }
     else
@@ -285,23 +301,24 @@ void receiveServer()
             message.device_id,
             message.card_id,
             state_no_response,
-            0);
+            0
+        );
     }
 }
 
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
 {
+    message.set(device_id, card_id, state_id, other_id);
+
 #ifdef DEBUG
     Serial.println("send data:");
     message.print();
     Serial.println("*****\n");
 #endif // DEBUG
 
-    message.set(device_id, card_id, state_id, other_id);
-
     easy_transfer.sendData();
 
     message.clean();
 }
 
-#pragma endregion //FUNCTIONS_DECLARATION
+#pragma endregion //FUNCTION_DECLARATION
