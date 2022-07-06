@@ -21,10 +21,10 @@ unsigned long   device_id       = 801;          // unique ID of reader device
 unsigned long   read_delay      = 250;          // reading card delay
 unsigned long   read_last       = 0;            // last read card time
 unsigned long   handle_delay    = 250;          // handle received response delay (for skipping default wiegand blink and beep)
-EasyTransfer    easy_transfer;                  // object for exchanging data between RS485
-Message         message;                        // object for exchanging data between ArduinoMega and ArduinoUno
+EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
+Message         message;                        // exchangeable object for EasyTransfer
 
-#pragma endregion
+#pragma endregion //GLOBAL_SETTINGS
 
 #pragma region RS485_SETTINGS
 
@@ -33,18 +33,18 @@ uint8_t         rs_tx_pin = 5;                  // RS485 transmit pin
 long            rs_baud   = 9600;               // RS485 baud rate (speed)
 SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // object for receiving and transmitting data via RS485
 
-#pragma endregion
+#pragma endregion //RS485_SETTINGS
 
 #pragma region WIEGAND_SETTINGS
 
 WIEGAND         wiegand;                        // object for reading data from Wiegnad RFID
-uint8_t         w_rx_pin  = 2;                  // wiegand data1 input pin
-uint8_t         w_tx_pin  = 3;                  // wiegand data2 input pin
+uint8_t         w_rx_pin  = 2;                  // wiegand receive pin
+uint8_t         w_tx_pin  = 3;                  // wiegand transmit pin
 uint8_t         w_zum_pin = 6;                  // wiegand built-in zummer control pin
 uint8_t         w_led_pin = 7;                  // wiegand built-in led control pin
 unsigned long   w_last_card;                    // last read card id
 
-#pragma endregion
+#pragma endregion //WIEGAND_SETTINGS
 
 #pragma region SERVER_STATES
 
@@ -55,9 +55,9 @@ const uint8_t   state_json_error    = 98;       // json deserialization error
 const uint8_t   state_timeout_error = 99;       // server connection timeout
 const uint8_t   state_ok            = 1;        // accessed
 
-#pragma endregion
+#pragma endregion //SERVER_STATES
 
-// send message to ArduinoUNO
+// send message to Arduino Uno (Ethernet Sender)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
 
 // reverses code by bit
@@ -110,6 +110,7 @@ void loop()
 
 #ifdef DEBUG
             Serial.println("read card id: " + String(w_last_card));
+            Serial.println("*****\n");
 #endif //DEBUG
 
             sendData(
@@ -129,10 +130,10 @@ void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8
     message.set(device_id, card_id, state_id, other_id);
 
 #ifdef DEBUG
-    Serial.println("send data:");
+    Serial.println("---send---");
     message.print();
     Serial.println("*****\n");
-#endif // DEBUG
+#endif //DEBUG
 
     easy_transfer.sendData();
 
@@ -158,7 +159,7 @@ unsigned long wiegandToDecimal(unsigned long code)
 void handleResponse()
 {
 #ifdef DEBUG
-        Serial.println("received message: ");
+        Serial.println("-received-");
         message.print();
         Serial.println("*****\n");
 #endif // DEBUG
@@ -248,4 +249,4 @@ void wiegandBlink(unsigned long blinkMs, unsigned long delayMs)
     delay(delayMs);
 }
 
-#pragma endregion
+#pragma endregion //FUNCTION_DESCRIPTION

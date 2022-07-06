@@ -24,15 +24,21 @@ struct Message
 	// clean message data
 	void clean()
 	{
-		
+		set();
 	}
+	
 	// print message data
 	void print()
 	{
-		Serial.println("message data:");
-		Serial.println("device_id: " + String(device_id));
-		Serial.println("card_id: " + String(card_id));
-		Serial.println("state_id: " + String(state_id));
-		Serial.println("other_id: " + String(other_id));
+		Serial.println("message:\n{");
+		Serial.print("\tdevice_id: ");
+		Serial.println(device_id);
+		Serial.print("\tcard_id:   ");
+		Serial.println(card_id);
+		Serial.print("\tstate_id:  ");
+		Serial.println(state_id);
+		Serial.print("\tother_id:  ");
+		Serial.println(other_id);
+		Serial.println("}");
 	}
 };

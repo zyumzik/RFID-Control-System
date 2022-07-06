@@ -21,10 +21,10 @@
 const String    program_version = "0.9.0";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
-EasyTransfer    easy_transfer;                  // object for exchanging data between RS485
-Message         message;                        // object for exchanging data between ArduinoNano and ArduinoUno
+EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
+Message         message;                        // exchangeable object for EasyTransfer
 
-#pragma endregion
+#pragma endregion //GLOBAL_SETTINGS
 
 #pragma region RS485_SETTINGS
 
@@ -33,7 +33,7 @@ uint8_t         rs_tx_pin = 3;                  // RS485 transmit pin
 long            rs_baud   = 9600;               // RS485 baud rate (speed)
 SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // object for receiving and transmitting data via RS485
 
-#pragma endregion
+#pragma endregion //RS485_SETTINGS
 
 #pragma region ETHERNET_SETTINGS
 
@@ -43,7 +43,7 @@ byte            mac[] = { 0x54, 0x34,
                           0x30, 0x35 };         // mac address of this device. must be unique in local network
 uint8_t         reconnect_delay = 20;           // delay for try to reconnect ethernet
 
-#pragma endregion
+#pragma endregion //ETHERNET_SETTINGS
 
 #pragma region SERVER_SETTINGS
 
@@ -57,7 +57,7 @@ String          server_request =
 unsigned long   server_receive_max_wait = 600;  // time for waiting response from server
 uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
-#pragma endregion
+#pragma endregion //SERVER_SETTINGS
 
 #pragma region SERVER_STATES
 
@@ -68,7 +68,7 @@ const uint8_t   state_json_error    = 98;       // json deserialization error
 const uint8_t   state_timeout_error = 99;       // server connection timeout
 const uint8_t   state_ok            = 1;        // accessed
 
-#pragma endregion
+#pragma endregion //SERVER_STATES
 
 // recursive function for connecting ethernet using DHCP
 bool ethernetConnect();
@@ -79,7 +79,7 @@ void sendServer();
 // receive response from server
 void receiveServer();
 
-// send message to ArduinoNano
+// send message to Arduino Nano (RFID Reader)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
 
 void setup()
@@ -106,12 +106,14 @@ void loop()
     if (easy_transfer.receiveData())
     {
 #ifdef DEBUG
-        Serial.println("received message: ");
+        Serial.println("-received-");
         message.print();
         Serial.println("*****\n");
 #endif //DEBUG
 
         sendServer();
+
+        receiveServer();
     }
 }
 
@@ -155,53 +157,8 @@ bool ethernetConnect()
 
 void sendServer()
 {
-    if (client.connect(server_name, server_port))
-    {
-        client.print(server_request);
-        client.print("id=");
-        client.print(message.card_id);
-        client.print("&kod=");
-        client.print(message.device_id);
-        client.println(" HTTP/1.1");
-        client.print("Host: ");
-        client.println(server_name);
-        client.println("Connection: close");
-        client.println();
-        client.println();
-
-#ifdef DEBUG
-        Serial.println("send http request:");
-        Serial.print(server_request);
-        Serial.print("id=");
-        Serial.print(message.card_id);
-        Serial.print("&kod=");
-        Serial.print(message.device_id);
-        Serial.println(" HTTP/1.1");
-        Serial.print("Host: ");
-        Serial.println(server_name);
-        Serial.println("Connection: close");
-        Serial.println();
-        Serial.println();
-#endif //DEBUG
-
-        if (!client.find("\r\n\r\n"))
-        {
-#ifdef DEBUG
-            Serial.println("invalid request, request not sent");
-#endif //DEBUG
-            client.stop();
-            sendData(
-                message.device_id,
-                message.card_id,
-                state_request_error,
-                0
-            );
-            return;
-        }
-
-        receiveServer();
-    }
-    else
+    // no ethernet or server connection, trying to reconnect
+    if (!client.connect(server_name, server_port))
     {
 #ifdef DEBUG
         Serial.println("client connect error");
@@ -228,16 +185,64 @@ void sendServer()
         );
         if (ethernetConnect())
             return;
+
+        // II way (smart)
+        //if (ethernetConnect())
+        //{
+        //    sendServer();
+        //    return;  
+        //}
     }
 
-    client.stop();
+    // connection established
+    client.print(server_request);
+    client.print("id=");
+    client.print(message.card_id);
+    client.print("&kod=");
+    client.print(message.device_id);
+    client.println(" HTTP/1.1");
+    client.print("Host: ");
+    client.println(server_name);
+    client.println("Connection: close");
+    client.println();
+    client.println();
+
+#ifdef DEBUG
+    Serial.println("send http request:");
+    Serial.print(server_request);
+    Serial.print("id=");
+    Serial.print(message.card_id);
+    Serial.print("&kod=");
+    Serial.print(message.device_id);
+    Serial.println(" HTTP/1.1");
+    Serial.print("Host: ");
+    Serial.println(server_name);
+    Serial.println("Connection: close");
+    Serial.println();
+    Serial.println();
+#endif //DEBUG
+
+    if (!client.find("\r\n\r\n"))
+    {
+#ifdef DEBUG
+        Serial.println("invalid request (not sent)");
+#endif //DEBUG
+        client.stop();
+        sendData(
+            message.device_id,
+            message.card_id,
+            state_request_error,
+            0
+        );
+        return;
+    }
 }
 
 void receiveServer()
 {
     // smart receive waiting
     server_receive_counter = 0;
-    while (server_receive_counter < server_receive_max_wait)
+    while (server_receive_counter <= server_receive_max_wait)
     {
         if (client.available())
             break;
@@ -270,24 +275,36 @@ void receiveServer()
         // successfully received response from server
         else
         {
+            unsigned long json_device_id = strtoul(json["kod"].as<const char*>(), NULL, 0);
+            unsigned long json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
+            unsigned long json_state_id  = json["status"].as<int>();
+            //uint8_t         json_other_id   = json["other"].as<uint8_t>();  // not exist
+
+            // TEST
+            // Serial.println("id as");
+            // Serial.print("const char*: ");
+            // Serial.println(json["id"].as<const char*>());
+            // Serial.print("strtoul: ");
+            // Serial.println(json_card_id);
 #ifdef DEBUG
             Serial.println("serialized data from json:");
-            Serial.print("kod: ");
-            Serial.println(json["kod"].as<uint_fast16_t>());
-            Serial.print("id: ");
-            Serial.println(json["id"].as<uint32_t>());
-            Serial.print("status: ");
-            Serial.println(json["status"].as<uint8_t>());
-            Serial.print("size: ");
-            Serial.println(json.size());
+
+            Serial.print("{id:");
+            Serial.print(json_card_id);
+            Serial.print(",kod:");
+            Serial.print(json_device_id);
+            Serial.print(",status:");
+            Serial.print(json_state_id);
+            Serial.println("}");
+
             Serial.println("*****\n");
 
             Serial.println("sending data from json...");
 #endif //DEBUG
             sendData(
-                json["kod"].as<uint_fast16_t>(),
-                json["id"].as<uint32_t>(),
-                json["status"].as<uint8_t>(),
+                json_device_id,
+                json_card_id,
+                json_state_id,
                 0
             );
         }
@@ -304,6 +321,8 @@ void receiveServer()
             0
         );
     }
+
+    client.stop();
 }
 
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
@@ -311,14 +330,14 @@ void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8
     message.set(device_id, card_id, state_id, other_id);
 
 #ifdef DEBUG
-    Serial.println("send data:");
+    Serial.println("---send---");
     message.print();
     Serial.println("*****\n");
-#endif // DEBUG
+#endif //DEBUG
 
     easy_transfer.sendData();
 
     message.clean();
 }
 
-#pragma endregion //FUNCTION_DECLARATION
+#pragma endregion //FUNCTION_DESCRIPTION
