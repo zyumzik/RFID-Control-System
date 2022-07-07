@@ -61,12 +61,13 @@ uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma region SERVER_STATES
 
-const uint8_t   state_denied        = 0;        // access denied
-const uint8_t   state_request_error = 96;       // wrong server request 
-const uint8_t   state_no_response   = 97;       // no response from server
-const uint8_t   state_json_error    = 98;       // json deserialization error
-const uint8_t   state_timeout_error = 99;       // server connection timeout
-const uint8_t   state_ok            = 1;        // accessed
+const uint8_t   state_denied        = 0;        // access denied                //
+const uint8_t   state_no_connection = 95;       // no ethernet connection       // !client.connect(server, port)
+const uint8_t   state_request_error = 96;       // wrong server request         // !client.find("\r\n\r\n")
+const uint8_t   state_no_response   = 97;       // no response from server      // json {"id":0,"kod":0,"status":0}
+const uint8_t   state_json_error    = 98;       // json deserialization error   // if (DeserializationError)
+const uint8_t   state_timeout_error = 99;       // server connection timeout    // !client.available()
+const uint8_t   state_ok            = 1;        // accessed                     // 
 
 #pragma endregion //SERVER_STATES
 
@@ -164,7 +165,10 @@ void sendServer()
         Serial.println("client connect error");
         Serial.print("ethernet status: ");
         for (int i = 0; i < 8; i++)
-            Serial.print(Ethernet._state[i] + " ");
+        {
+            Serial.print(Ethernet._state[i]);
+            Serial.print(" ");
+        }
         Serial.println();
         Serial.println(String("all statuses::") + 
                     "\nsock_close: " + Sock_CLOSE + 
@@ -180,7 +184,7 @@ void sendServer()
         sendData(
             message.device_id, 
             message.card_id, 
-            state_timeout_error, 
+            state_no_connection,
             0
         );
         if (ethernetConnect())
@@ -279,13 +283,6 @@ void receiveServer()
             unsigned long json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
             unsigned long json_state_id  = json["status"].as<int>();
             //uint8_t         json_other_id   = json["other"].as<uint8_t>();  // not exist
-
-            // TEST
-            // Serial.println("id as");
-            // Serial.print("const char*: ");
-            // Serial.println(json["id"].as<const char*>());
-            // Serial.print("strtoul: ");
-            // Serial.println(json_card_id);
 #ifdef DEBUG
             Serial.println("serialized data from json:");
 
@@ -301,23 +298,42 @@ void receiveServer()
 
             Serial.println("sending data from json...");
 #endif //DEBUG
-            sendData(
-                json_device_id,
-                json_card_id,
-                json_state_id,
-                0
-            );
+            // no response from server
+            if (json_device_id == 0 &&
+                json_card_id == 0 &&
+                json_state_id == 0)
+            {
+#ifdef DEBUG
+                Serial.println("error: no response from server");
+#endif //DEBUG
+                sendData(
+                    0,
+                    0,
+                    state_no_response,
+                    0
+                );
+            }
+            // correct response
+            else
+            {
+                sendData(
+                    json_device_id,
+                    json_card_id,
+                    json_state_id,
+                    0
+                );
+            }
         }
     }
     else
     {
 #ifdef DEBUG
-        Serial.println("error: no response from server");
+        Serial.println("error: response timeout");
 #endif // DEBUG
         sendData(
             message.device_id,
             message.card_id,
-            state_no_response,
+            state_timeout_error,
             0
         );
     }
