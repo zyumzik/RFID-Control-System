@@ -10,6 +10,7 @@
 #include <Message.h>
 #include <SoftwareSerial.h>
 #include <Wiegand.h>
+#include <Timer.h>
 
 #pragma region GLOBAL_SETTINGS
 
@@ -17,12 +18,14 @@
 const String    program_version = "0.9.1";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
+unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
 unsigned long   device_id       = 801;          // unique ID of reader device
 unsigned long   read_delay      = 250;          // reading card delay
 unsigned long   read_last       = 0;            // last read card time
 unsigned long   handle_delay    = 250;          // handle received response delay (for skipping default wiegand blink and beep)
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
+bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
 
 #pragma endregion //GLOBAL_SETTINGS
 
@@ -43,6 +46,9 @@ uint8_t         w_tx_pin  = 3;                  // wiegand transmit pin
 uint8_t         w_zum_pin = 6;                  // wiegand built-in zummer control pin
 uint8_t         w_led_pin = 7;                  // wiegand built-in led control pin
 unsigned long   w_last_card;                    // last read card id
+
+bool            w_led_state = false;            // state of wiegand led (true if switched on)
+Timer           w_led_timer;                    // timer for wiegand blinking if ethernet not connected
 
 #pragma endregion //WIEGAND_SETTINGS
 
@@ -87,20 +93,53 @@ void setup()
 #endif //DEBUG
     
     wiegand.begin(w_rx_pin, w_tx_pin);
+    w_led_timer.begin(500);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
+    pinMode(8, OUTPUT);
 
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
+
+    pinMode(6, HIGH);
+    delay(1000);
+    pinMode(6, LOW);
+
+    wiegandBeep(1000, 1000);
 }
 
 void loop()
 {
+
     // received message from ArduinoUNO
     if (easy_transfer.receiveData())
     {
         handleResponse();
     }
+
+    //test
+    if (w_led_timer.update())
+    {
+        Serial.println("timer updated");
+        pinMode(w_led_pin, w_led_state);
+        w_led_state = !w_led_state;
+    }
+
+    // blinking with wiegand led if Arduino Uno (master) has no ethernet connection
+    // if (!ethernet_flag)
+    // {
+    //     if (w_led_timer.update())
+    //     {
+    //         Serial.print("blink");
+    //         if (w_led_state)
+    //             pinMode(w_led_pin, HIGH);
+    //         else
+    //             pinMode(w_led_pin, LOW);
+
+    //         w_led_state = !w_led_state;
+    //     }
+    //     return;
+    // }
 
     // read a card
     if (millis() >= read_last + read_delay)
@@ -161,86 +200,59 @@ unsigned long wiegandToDecimal(unsigned long code)
 void handleResponse()
 {
 #ifdef DEBUG
-        Serial.println("-received-");
-        message.print();
-        Serial.println("*****\n");
+    Serial.println("-received-");
+    message.print();
+    Serial.println("*****\n");
 #endif // DEBUG
-
-        // base data checking (if message was for this device)
-        if (message.device_id != device_id)
-        {
+    // base data checking (if message was for this device)
+    if (message.device_id != broadcast_id &&
+        message.device_id != device_id)
+    {
 #ifdef DEBUG
-            Serial.println("message not handled: another device");
+        Serial.println("message for another device");
 #endif //DEBUG
-            return;
-        }
-        else if (message.card_id != w_last_card)
-        {
-#ifdef DEBUG
-            Serial.println("message not handled: another card");
-#endif //DEBUG
-            return;
-        }
+        return;
+    }
         
-        delay(handle_delay);
+    delay(handle_delay);
 
-        if (message.state_id == st_denied)
-        {
-#ifdef DEBUG
-            Serial.println("state 0: access denied");
-#endif //DEBUG
-        }
-        else if (message.state_id == st_ok)
-        {
-#ifdef DEBUG
-            Serial.println("state 1: it's okay");
-#endif //DEBUG
-        }
-        else if (message.state_id == st_no_srvr_cnctn)
-        {
-#ifdef DEBUG
-            Serial.println("error 95: no server connection");
-#endif //DEBUG
-        }
-        else if (message.state_id == st_request_error)
-        {
-#ifdef DEBUG
-            Serial.println("error 96: invalid server request");
-#endif //DEBUG
-        }
-        else if (message.state_id == st_no_response)
-        {
-#ifdef DEBUG
-            Serial.println("error 97: no response from server");
-#endif //DEBUG
-        }
-        else if (message.state_id == st_json_error)
-        {
-#ifdef DEBUG
-            Serial.println("error 98: json error");
-#endif //DEBUG
-        }
-        else if (message.state_id == st_timeout_error)
+    if (message.state_id == st_denied)
+    {
+    }
+    else if (message.state_id == st_ok)
+    {
+    }
+    else if (message.state_id == st_no_srvr_cnctn)
+    {
+    }
+    else if (message.state_id == st_request_error)
+    {
+    }
+    else if (message.state_id == st_no_response)
+    {
+    }
+    else if (message.state_id == st_json_error)
+    {
+    }
+    else if (message.state_id == st_timeout_error)
         {
 #ifdef DEBUG
             Serial.println("error 99: server connect timeout");
 #endif //DEBUG
         }
-        else if (message.state_id == st_no_ethr_cnctn)
-        {
-#ifdef DEBUG
-            Serial.println("error 100: no ethernet connection");
-#endif //DEBUG
-        }
-        // unknown state
-        else
-        {
-#ifdef DEBUG
-            Serial.println("unknown state");
-#endif //DEBUG
-        }
+    else if (message.state_id == st_no_ethr_cnctn)
+    {
+        if (message.other_id == 0)
+            ethernet_flag = false;
+        else if (message.other_id == 1)
+            ethernet_flag = true;
+    }
+    // unknown state
+    else
+    {
+    }
 
-        message.clean();  // ???
+    message.clean();  // ???
 }
 
 void wiegandBeep(unsigned long beepMs, unsigned long delayMs)

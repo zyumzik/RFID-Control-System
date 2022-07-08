@@ -21,6 +21,7 @@
 const String    program_version = "0.9.1";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
+unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 
@@ -87,6 +88,9 @@ void receiveServer();
 // send message to Arduino Nano (RFID Reader)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
 
+// send broadcast message (for all of devices connected by RS485)
+void sendBroadcast(uint8_t state_id, uint8_t other_id);
+
 void setup()
 {
     rs485.begin(rs_baud);
@@ -143,13 +147,17 @@ void ethernetConnect()
     // base ethernet connecting
     if (!ethernetConnected())
     {
+#ifdef DEBUG
+        Serial.println("ethernet not connected...");
+#endif //DEBUG
+        sendBroadcast(st_no_ethr_cnctn, 0);
+        
         while(!ethernetConnected())
         {
-#ifdef DEBUG
-            Serial.println("ethernet not connected...");
-#endif //DEBUG
             delay(reconnect_delay);
         }
+        
+        sendBroadcast(st_no_ethr_cnctn, 1);
     }
 #ifdef DEBUG
     Serial.print("ethernet connected: ");
@@ -162,11 +170,11 @@ void ethernetConnect()
     // connecting to network (using mac address and DHCP)
     if (Ethernet.begin(mac) == 0)
     {
+        delay(reconnect_delay);
 #ifdef DEBUG
         Serial.println("connection via DHCP is not established");
         Serial.println("trying to reconnect...");
 #endif //DEBUG
-        delay(reconnect_delay);
         ethernetConnect();
     }
 
@@ -186,8 +194,6 @@ void ethernetConnect()
     }
     Serial.println("\n*****\n");
 #endif //DEBUG
-
-    return;
 }
 
 void sendServer()
@@ -374,6 +380,21 @@ void receiveServer()
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
 {
     message.set(device_id, card_id, state_id, other_id);
+
+#ifdef DEBUG
+    Serial.println("---send---");
+    message.print();
+    Serial.println("*****\n");
+#endif //DEBUG
+
+    easy_transfer.sendData();
+
+    message.clean();
+}
+
+void sendBroadcast(uint8_t state_id, uint8_t other_id)
+{
+    message.set(broadcast_id, 0, state_id, other_id);
 
 #ifdef DEBUG
     Serial.println("---send---");
