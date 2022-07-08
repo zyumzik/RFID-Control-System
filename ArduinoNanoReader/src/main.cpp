@@ -14,7 +14,7 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.0";      // program version
+const String    program_version = "0.9.1";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   device_id       = 801;          // unique ID of reader device
@@ -48,12 +48,14 @@ unsigned long   w_last_card;                    // last read card id
 
 #pragma region SERVER_STATES
 
-const uint8_t   state_denied        = 0;        // access denied
-const uint8_t   state_request_error = 96;       // wrong server request 
-const uint8_t   state_no_response   = 97;       // no response from server
-const uint8_t   state_json_error    = 98;       // json deserialization error
-const uint8_t   state_timeout_error = 99;       // server connection timeout
-const uint8_t   state_ok            = 1;        // accessed
+const uint8_t   st_denied        = 0;           // access denied                //
+const uint8_t   st_no_srvr_cnctn = 95;          // no ethernet connection       // !client.connect(server, port)
+const uint8_t   st_request_error = 96;          // wrong server request         // !client.find("\r\n\r\n")
+const uint8_t   st_no_response   = 97;          // no response from server      // json {"id":0,"kod":0,"status":0}
+const uint8_t   st_json_error    = 98;          // json deserialization error   // if (DeserializationError)
+const uint8_t   st_timeout_error = 99;          // server connection timeout    // !client.available()
+const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection       // !ethernetConnected()
+const uint8_t   st_ok            = 1;           // accessed                     // 
 
 #pragma endregion //SERVER_STATES
 
@@ -182,44 +184,52 @@ void handleResponse()
         
         delay(handle_delay);
 
-        if (message.state_id == state_denied)
+        if (message.state_id == st_denied)
         {
 #ifdef DEBUG
             Serial.println("state 0: access denied");
 #endif //DEBUG
-            for (int i = 0; i < 5; i++)
-            {
-                wiegandBlink(400, 100);
-            }
         }
-        else if (message.state_id == state_ok)
+        else if (message.state_id == st_ok)
         {
 #ifdef DEBUG
             Serial.println("state 1: it's okay");
 #endif //DEBUG
         }
-        else if (message.state_id == state_request_error)
+        else if (message.state_id == st_no_srvr_cnctn)
+        {
+#ifdef DEBUG
+            Serial.println("error 95: no server connection");
+#endif //DEBUG
+        }
+        else if (message.state_id == st_request_error)
         {
 #ifdef DEBUG
             Serial.println("error 96: invalid server request");
 #endif //DEBUG
         }
-        else if (message.state_id == state_no_response)
+        else if (message.state_id == st_no_response)
         {
 #ifdef DEBUG
             Serial.println("error 97: no response from server");
 #endif //DEBUG
         }
-        else if (message.state_id == state_json_error)
+        else if (message.state_id == st_json_error)
         {
 #ifdef DEBUG
             Serial.println("error 98: json error");
 #endif //DEBUG
         }
-        else if (message.state_id == state_timeout_error)
+        else if (message.state_id == st_timeout_error)
         {
 #ifdef DEBUG
             Serial.println("error 99: server connect timeout");
+#endif //DEBUG
+        }
+        else if (message.state_id == st_no_ethr_cnctn)
+        {
+#ifdef DEBUG
+            Serial.println("error 100: no ethernet connection");
 #endif //DEBUG
         }
         // unknown state

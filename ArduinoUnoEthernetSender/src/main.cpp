@@ -9,7 +9,7 @@
 #include <ArduinoJson.hpp>
 #include <ArduinoJson.h>
 #include <EthernetClient.h>
-#include <Ethernet2.h>
+#include <Ethernet3.h>
 #include <EasyTransfer.h>
 #include <Message.h>
 #include <SoftwareSerial.h>
@@ -18,7 +18,7 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.0";      // program version
+const String    program_version = "0.9.1";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
@@ -61,18 +61,22 @@ uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma region SERVER_STATES
 
-const uint8_t   state_denied        = 0;        // access denied                //
-const uint8_t   state_no_connection = 95;       // no ethernet connection       // !client.connect(server, port)
-const uint8_t   state_request_error = 96;       // wrong server request         // !client.find("\r\n\r\n")
-const uint8_t   state_no_response   = 97;       // no response from server      // json {"id":0,"kod":0,"status":0}
-const uint8_t   state_json_error    = 98;       // json deserialization error   // if (DeserializationError)
-const uint8_t   state_timeout_error = 99;       // server connection timeout    // !client.available()
-const uint8_t   state_ok            = 1;        // accessed                     // 
+const uint8_t   st_denied        = 0;           // access denied                //
+const uint8_t   st_no_srvr_cnctn = 95;          // no ethernet connection       // !client.connect(server, port)
+const uint8_t   st_request_error = 96;          // wrong server request         // !client.find("\r\n\r\n")
+const uint8_t   st_no_response   = 97;          // no response from server      // json {"id":0,"kod":0,"status":0}
+const uint8_t   st_json_error    = 98;          // json deserialization error   // if (DeserializationError)
+const uint8_t   st_timeout_error = 99;          // server connection timeout    // !client.available()
+const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection       // !ethernetConnected()
+const uint8_t   st_ok            = 1;           // accessed                     // 
 
 #pragma endregion //SERVER_STATES
 
-// recursive function for connecting ethernet using DHCP
-bool ethernetConnect();
+// returns true if ethernet connection established
+bool ethernetConnected();
+
+// recursive function for establishing DHCP connection
+void ethernetConnect();
 
 // send data to server
 void sendServer();
@@ -104,6 +108,11 @@ void setup()
 
 void loop()
 {
+    if (!ethernetConnected())
+    {
+        ethernetConnect();
+    }
+
     if (easy_transfer.receiveData())
     {
 #ifdef DEBUG
@@ -120,12 +129,37 @@ void loop()
 
 #pragma region FUNCTION_DESCRIPTION
 
-bool ethernetConnect()
+bool ethernetConnected()
 {
+    if (Ethernet.link() == 1 && 
+        Ethernet.speed() != 0)
+        return true;
+    else
+        return false;
+}
+
+void ethernetConnect()
+{
+    // base ethernet connecting
+    if (!ethernetConnected())
+    {
+        while(!ethernetConnected())
+        {
 #ifdef DEBUG
-    Serial.println("connecting ethernet...");
+            Serial.println("ethernet not connected...");
+#endif //DEBUG
+            delay(reconnect_delay);
+        }
+    }
+#ifdef DEBUG
+    Serial.print("ethernet connected: ");
+    Serial.println(Ethernet.link());
+    Serial.print("ethernet speed: ");
+    Serial.println(Ethernet.speed());
+    Serial.println("connecting network...");
 #endif //DEBUG
 
+    // connecting to network (using mac address and DHCP)
     if (Ethernet.begin(mac) == 0)
     {
 #ifdef DEBUG
@@ -153,51 +187,39 @@ bool ethernetConnect()
     Serial.println("\n*****\n");
 #endif //DEBUG
 
-    return true;
+    return;
 }
 
 void sendServer()
 {
     // no ethernet or server connection, trying to reconnect
     if (!client.connect(server_name, server_port))
-    {
+    {   
 #ifdef DEBUG
-        Serial.println("client connect error");
-        Serial.print("ethernet status: ");
-        for (int i = 0; i < 8; i++)
-        {
-            Serial.print(Ethernet._state[i]);
-            Serial.print(" ");
-        }
-        Serial.println();
-        Serial.println(String("all statuses::") + 
-                    "\nsock_close: " + Sock_CLOSE + 
-                    "\nsock_connect: " + Sock_CONNECT + 
-                    "\nsock_discon: " + Sock_DISCON + 
-                    "\nsock_listen: " + Sock_LISTEN + 
-                    "\nsock_open: " + Sock_OPEN + 
-                    "\nsock_recv: " + Sock_RECV + 
-                    "\nsock_send: " + Sock_SEND + 
-                    "\nsock_send_keep: " + Sock_SEND_KEEP + 
-                    "\nsock_send_mac: " + Sock_SEND_MAC);
+        Serial.println("server connection not established");
 #endif //DEBUG
-        sendData(
-            message.device_id, 
-            message.card_id, 
-            state_no_connection,
-            0
-        );
-        if (ethernetConnect())
-            return;
-
-        // II way (smart)
-        //if (ethernetConnect())
-        //{
-        //    sendServer();
-        //    return;  
-        //}
+        if (!ethernetConnected())
+        {
+            Serial.println("ethernet connection not established");
+            sendData(
+                message.device_id,
+                message.card_id,
+                st_no_ethr_cnctn,
+                0
+            );
+            ethernetConnect();
+        }
+        else
+        {
+            sendData(
+                message.device_id, 
+                message.card_id, 
+                st_no_srvr_cnctn,
+                0
+            );
+        }
     }
-
+    
     // connection established
     client.print(server_request);
     client.print("id=");
@@ -224,8 +246,16 @@ void sendServer()
     Serial.println("Connection: close");
     Serial.println();
     Serial.println();
+
+    Serial.print("browser link: " + String(server_name) + 
+    "/skd.mk/baseadd.php?id=");
+    Serial.print(message.card_id);
+    Serial.print("&kod=");
+    Serial.println(message.device_id);
+
 #endif //DEBUG
 
+    // rare error check
     if (!client.find("\r\n\r\n"))
     {
 #ifdef DEBUG
@@ -235,7 +265,7 @@ void sendServer()
         sendData(
             message.device_id,
             message.card_id,
-            state_request_error,
+            st_request_error,
             0
         );
         return;
@@ -272,7 +302,7 @@ void receiveServer()
             sendData(
                 message.device_id, 
                 message.card_id, 
-                state_json_error, 
+                st_json_error, 
                 0
             );
         }
@@ -309,7 +339,7 @@ void receiveServer()
                 sendData(
                     0,
                     0,
-                    state_no_response,
+                    st_no_response,
                     0
                 );
             }
@@ -333,7 +363,7 @@ void receiveServer()
         sendData(
             message.device_id,
             message.card_id,
-            state_timeout_error,
+            st_timeout_error,
             0
         );
     }
