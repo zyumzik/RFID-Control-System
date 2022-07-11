@@ -106,7 +106,8 @@ void setup()
     pinMode(w_led_pin, HIGH);
     delay(1000);
     pinMode(w_led_pin, LOW);
-    delay(1000);pinMode(w_led_pin, HIGH);
+    delay(1000);
+    pinMode(w_led_pin, HIGH);
     delay(1000);
     pinMode(w_led_pin, LOW);
     delay(1000);
@@ -133,6 +134,7 @@ void loop()
     }
 
     // blinking with wiegand led if Arduino Uno (master) has no ethernet connection
+
     // if (!ethernet_flag)
     // {
     //     if (w_led_timer.update())
@@ -142,7 +144,6 @@ void loop()
     //             pinMode(w_led_pin, HIGH);
     //         else
     //             pinMode(w_led_pin, LOW);
-
     //         w_led_state = !w_led_state;
     //     }
     //     return;
