@@ -96,16 +96,15 @@ void setup()
     w_led_timer.begin(500);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
-    pinMode(8, OUTPUT);
 
-    rs485.begin(rs_baud);
-    easy_transfer.begin(details(message), &rs485);
+    delay(3000);
 
     pinMode(6, HIGH);
     delay(1000);
     pinMode(6, LOW);
 
-    wiegandBeep(1000, 1000);
+    rs485.begin(rs_baud);
+    easy_transfer.begin(details(message), &rs485);
 }
 
 void loop()
