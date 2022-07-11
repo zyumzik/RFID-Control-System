@@ -17,6 +17,7 @@
 
 #pragma region GLOBAL_SETTINGS
 
+void(* resetFunc) (void) = 0;                   // reset Arduino Uno
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
 const String    program_version = "0.9.3";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
@@ -43,8 +44,6 @@ byte            mac[] = { 0x54, 0x34,
                           0x41, 0x30, 
                           0x30, 0x35 };         // mac address of this device. must be unique in local network
 uint8_t         reconnect_delay = 100;          // delay for try to reconnect ethernet
-
-void(* resetFunc) (void) = 0;                   // Reset MC function
 
 #pragma endregion //ETHERNET_SETTINGS
 
