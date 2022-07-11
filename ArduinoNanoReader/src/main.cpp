@@ -65,6 +65,8 @@ const uint8_t   st_ok            = 1;           // accessed                     
 
 #pragma endregion //SERVER_STATES
 
+#pragma region FUNCTION_SEMANTICS
+
 // send message to Arduino Uno (Ethernet Sender)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
 
@@ -80,6 +82,8 @@ void wiegandBeep(unsigned long beepMs, unsigned long delayMs);
 // blinks for beepMs time and delayMs delay
 void wiegandBlink(unsigned long blinkMs, unsigned long delayMs);
 
+#pragma endregion //FUNCTION_SEMANTICS
+
 void setup()
 {
 #ifdef DEBUG
@@ -93,32 +97,19 @@ void setup()
 #endif //DEBUG
     
     wiegand.begin(w_rx_pin, w_tx_pin);
-    w_led_timer.begin(500);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
-
-    delay(3000);
-
-    pinMode(w_led_pin, HIGH);
-    delay(1000);
-    pinMode(w_led_pin, LOW);
-    delay(1000);
-    pinMode(w_led_pin, HIGH);
-    delay(1000);
-    pinMode(w_led_pin, LOW);
-    delay(1000);
-    pinMode(w_led_pin, HIGH);
-    delay(1000);
-    pinMode(w_led_pin, LOW);
-    delay(1000);
-
+    w_led_timer.begin(500);
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
+
+    for (int i = 0; i < 5; i++)
+        wiegandBlink(1000, 1000);
+    
 }
 
 void loop()
 {
-
     // received message from ArduinoUNO
     if (easy_transfer.receiveData())
     {
