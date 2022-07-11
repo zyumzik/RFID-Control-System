@@ -6,6 +6,7 @@
 */
 
 #include <Arduino.h>
+#include <ArduinoUniqueID.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -134,8 +135,18 @@ void setup()
     Serial.println(
         String("Arduino Nano AT328 RFID-WG Reader. V." + program_version) +
         String("\nstart working on ") + serial_baud + " baud speed" + 
-        String("device id: ") + device_id);
+        String("\ndevice id: ") + device_id);
 #endif //DEBUG
+    Serial.println("unique id: ");
+    for (size_t i = 0; i < UniqueIDsize; i++)
+    {
+        Serial.print(UniqueID8[i], HEX);
+        Serial.print(" ");
+    }
+    Serial.print("to long: ");
+    Serial.println(*((unsigned long*)UniqueID8));
+    Serial.println("*****\n");
+    
 }
 
 void loop()
