@@ -18,7 +18,7 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.1";      // program version
+const String    program_version = "0.9.2";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
@@ -73,6 +73,8 @@ const uint8_t   st_ok            = 1;           // accessed                     
 
 #pragma endregion //SERVER_STATES
 
+#pragma region FUNCTION_DECLARATION
+
 // returns true if ethernet connection established
 bool ethernetConnected();
 
@@ -90,6 +92,8 @@ void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8
 
 // send broadcast message (for all of devices connected by RS485)
 void sendBroadcast(uint8_t state_id, uint8_t other_id);
+
+#pragma endregion //FUNCTION_DECLARATION
 
 void setup()
 {
@@ -343,8 +347,8 @@ void receiveServer()
                 Serial.println("error: no response from server");
 #endif //DEBUG
                 sendData(
-                    0,
-                    0,
+                    message.device_id,
+                    message.card_id,
                     st_no_response,
                     0
                 );

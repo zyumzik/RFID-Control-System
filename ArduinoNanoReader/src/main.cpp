@@ -66,7 +66,7 @@ const uint8_t   st_ok            = 1;           // accessed                     
 
 #pragma endregion //SERVER_STATES
 
-#pragma region FUNCTION_SEMANTICS
+#pragma region FUNCTION_DECLARATION
 
 // send message to Arduino Uno (Ethernet Sender)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
@@ -83,7 +83,7 @@ void wiegandBeep(unsigned long beepMs, unsigned long delayMs);
 // blinks for beepMs time and delayMs delay
 void wiegandBlink(unsigned long blinkMs, unsigned long delayMs);
 
-#pragma endregion //FUNCTION_SEMANTICS
+#pragma endregion //FUNCTION_DECLARATION
 
 void setup()
 {
@@ -91,10 +91,8 @@ void setup()
     Serial.begin(serial_baud);
     while (!Serial);
     Serial.println(
-        String("Arduino Nano AT328 RFID-WG Reader") +
-        String("\nstart working...") + 
-        String("\nprogram version: ") + program_version +
-        String("\nserial baud speed: ") + serial_baud);
+        String("Arduino Nano AT328 RFID-WG Reader. V." + program_version) +
+        String("\nstart working on ") + serial_baud + " baud speed");
 #endif //DEBUG
     
     wiegand.begin(w_rx_pin, w_tx_pin);
