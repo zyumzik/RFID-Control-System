@@ -99,9 +99,17 @@ void setup()
 
     delay(3000);
 
-    pinMode(6, HIGH);
+    pinMode(w_led_pin, HIGH);
     delay(1000);
-    pinMode(6, LOW);
+    pinMode(w_led_pin, LOW);
+    delay(1000);
+    pinMode(w_led_pin, HIGH);
+    delay(1000);
+    pinMode(w_led_pin, LOW);
+    delay(1000);pinMode(w_led_pin, HIGH);
+    delay(1000);
+    pinMode(w_led_pin, LOW);
+    delay(1000);
 
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
