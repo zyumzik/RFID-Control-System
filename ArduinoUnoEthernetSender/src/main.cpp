@@ -105,10 +105,8 @@ void setup()
     Serial.begin(serial_baud);
     while (!Serial);
     Serial.println(
-        String("Arduino Uno Ethernet Sender") +
-        String("\nstart working...") + 
-        String("\nprogram version: ") + program_version +
-        String("\nserial baud speed: ") + serial_baud);
+        String("Arduino Uno Ethernet Sender. V." + program_version) +
+        String("\nstart working on ") + serial_baud + " baud speed");
 #endif //DEBUG
 
     ethernetConnect();
