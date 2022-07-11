@@ -18,7 +18,7 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.2";      // program version
+const String    program_version = "0.9.3";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
@@ -42,7 +42,9 @@ EthernetClient  client;                         // object for connecting etherne
 byte            mac[] = { 0x54, 0x34, 
                           0x41, 0x30, 
                           0x30, 0x35 };         // mac address of this device. must be unique in local network
-uint8_t         reconnect_delay = 20;           // delay for try to reconnect ethernet
+uint8_t         reconnect_delay = 100;          // delay for try to reconnect ethernet
+
+void(* resetFunc) (void) = 0;                   // Reset MC function
 
 #pragma endregion //ETHERNET_SETTINGS
 
@@ -62,14 +64,21 @@ uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma region SERVER_STATES
 
-const uint8_t   st_denied        = 0;           // access denied                //
-const uint8_t   st_no_srvr_cnctn = 95;          // no ethernet connection       // !client.connect(server, port)
-const uint8_t   st_request_error = 96;          // wrong server request         // !client.find("\r\n\r\n")
-const uint8_t   st_no_response   = 97;          // no response from server      // json {"id":0,"kod":0,"status":0}
-const uint8_t   st_json_error    = 98;          // json deserialization error   // if (DeserializationError)
-const uint8_t   st_timeout_error = 99;          // server connection timeout    // !client.available()
-const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection       // !ethernetConnected()
-const uint8_t   st_ok            = 1;           // accessed                     // 
+const uint8_t   st_no_rs_cnctn   = 94;          // no RS485 connection              | 
+const uint8_t   st_no_srvr_cnctn = 95;          // no ethernet connection           | !client.connect(server, port)
+const uint8_t   st_request_error = 96;          // wrong server request             | !client.find("\r\n\r\n")
+const uint8_t   st_no_response   = 97;          // no response from server          | json {"id":0,"kod":0,"status":0}
+const uint8_t   st_json_error    = 98;          // json deserialization error       | if (DeserializationError)
+const uint8_t   st_timeout_error = 99;          // server connection timeout        | !client.available()
+const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection           | !ethernetConnected()
+const uint8_t   st_get_device_id = 300;         // request for giving device id     |
+const uint8_t   st_set_device_id = 301;         // response for giving device id    |
+
+const uint8_t   st_denied        = 0;           // access denied
+const uint8_t   st_allow         = 1;           // access allowed
+const uint8_t   st_rest_denied   = 2;           // access denied for restricted area
+const uint8_t   st_rest_allow    = 3;           // access allowed for restricted area
+const uint8_t   st_temp_denied   = 4;           // access temporary denied
 
 #pragma endregion //SERVER_STATES
 
@@ -146,6 +155,15 @@ bool ethernetConnected()
 
 void ethernetConnect()
 {
+    // Serial.print("softreset: ");
+    // Serial.println(Ethernet.softreset());
+    // Ethernet.hardreset();
+    // Serial.print("maintain: ");
+    // Serial.println(Ethernet.maintain());
+    // Ethernet.setRtTimeOut(5000);
+    //w5500.softReset();
+    //W5500Class::resetSS();
+
     // base ethernet connecting
     if (!ethernetConnected())
     {
@@ -153,14 +171,13 @@ void ethernetConnect()
         Serial.println("ethernet not connected...");
 #endif //DEBUG
         sendBroadcast(st_no_ethr_cnctn, 0);
-        
+        resetFunc();
         while(!ethernetConnected())
         {
             delay(reconnect_delay);
         }
-        
-        sendBroadcast(st_no_ethr_cnctn, 1);
     }
+
 #ifdef DEBUG
     Serial.print("ethernet connected: ");
     Serial.println(Ethernet.link());
@@ -196,6 +213,8 @@ void ethernetConnect()
     }
     Serial.println("\n*****\n");
 #endif //DEBUG
+
+    sendBroadcast(st_no_ethr_cnctn, 1);
 }
 
 void sendServer()
