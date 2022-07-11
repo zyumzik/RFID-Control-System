@@ -15,7 +15,7 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.1";      // program version
+const String    program_version = "0.9.2";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
@@ -49,6 +49,7 @@ unsigned long   w_last_card;                    // last read card id
 
 bool            w_led_state = false;            // state of wiegand led (true if switched on)
 Timer           w_led_timer;                    // timer for wiegand blinking if ethernet not connected
+uint32_t        w_led_period = 500;            // period of led blinking
 
 #pragma endregion //WIEGAND_SETTINGS
 
@@ -99,13 +100,9 @@ void setup()
     wiegand.begin(w_rx_pin, w_tx_pin);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
-    w_led_timer.begin(500);
+    w_led_timer.begin(w_led_period);
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
-
-    for (int i = 0; i < 5; i++)
-        wiegandBlink(1000, 1000);
-    
 }
 
 void loop()
@@ -116,29 +113,16 @@ void loop()
         handleResponse();
     }
 
-    //test
-    if (w_led_timer.update())
-    {
-        Serial.println("timer updated");
-        pinMode(w_led_pin, w_led_state);
-        w_led_state = !w_led_state;
-    }
-
     // blinking with wiegand led if Arduino Uno (master) has no ethernet connection
-
-    // if (!ethernet_flag)
-    // {
-    //     if (w_led_timer.update())
-    //     {
-    //         Serial.print("blink");
-    //         if (w_led_state)
-    //             pinMode(w_led_pin, HIGH);
-    //         else
-    //             pinMode(w_led_pin, LOW);
-    //         w_led_state = !w_led_state;
-    //     }
-    //     return;
-    // }
+    if (!ethernet_flag)
+    {
+        if (w_led_timer.update())
+        {
+            digitalWrite(w_led_pin, w_led_state);
+            w_led_state = !w_led_state;
+        }
+        return;
+    }
 
     // read a card
     if (millis() >= read_last + read_delay)
