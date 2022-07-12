@@ -24,7 +24,7 @@ unsigned long   broadcast_id    = 999;          // id for receiving broadcast me
 unsigned long   device_id       = 0;            // unique ID of reader device
 unsigned long   read_delay      = 1000;         // reading card delay
 unsigned long   read_last       = 0;            // last read card time
-unsigned long   handle_delay    = 500;          // handle received response delay (for skipping default wiegand blink and beep)
+unsigned long   handle_delay    = 1000;         // handle received response delay (for skipping default wiegand blink and beep)
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
@@ -52,7 +52,7 @@ uint8_t         w_tx_pin  = 3;                  // wiegand transmit pin
 uint8_t         w_zum_pin = 6;                  // wiegand built-in zummer control pin
 uint8_t         w_led_pin = 7;                  // wiegand built-in led control pin
 unsigned long   w_last_card;                    // last read card id
-WiegnadSignal   w_signal(w_led_pin, w_zum_pin); // object for better led and zummer signaling
+WiegandSignal   w_signal(w_led_pin, w_zum_pin); // object for better led and zummer signaling
 
 #pragma endregion //WIEGAND_SETTINGS
 
@@ -264,12 +264,18 @@ void handleResponse()
         
     delay(handle_delay);
 
+    // TEST !!!!!!!!!!!!!
+    message.set(999, 0, st_re_entry, 0);
+
+    // if error - long signal firstly
+    if (message.state_id >= 90)
+        w_signal.signal(s_long, 1);
+
     switch (message.state_id)
     {
     case st_unknown:
     {
-        w_signal.blink(500, 500, 5);
-        //w_signal.beep(500, 500, 5);
+        w_signal.signal(s_long, 3);
         #ifdef DEBUG
         Serial.println("unknown status");
         #endif //DEBUG
@@ -284,8 +290,7 @@ void handleResponse()
     }
     case st_re_entry:
     {
-        w_signal.blink(500, 500, 3);
-        //w_signal.beep(500, 500, 2);
+        w_signal.signal(s_long, 2);
         #ifdef DEBUG
         Serial.println("re-entry");
         #endif //DEBUG
@@ -293,8 +298,7 @@ void handleResponse()
     }
     case st_denied:
     {
-        w_signal.blink(250, 250, 10);
-        //w_signal.beep(250, 250, 10);
+        w_signal.signal(s_medium, 10);
         #ifdef DEBUG
         Serial.println("access denied");
         #endif //DEBUG
@@ -302,8 +306,7 @@ void handleResponse()
     }
     case st_invalid:
     {
-        w_signal.blink(250, 250, 3);
-        //
+        w_signal.signal(s_medium, 5);
         #ifdef DEBUG
         Serial.println("invalid card");
         #endif //DEBUG
@@ -311,8 +314,7 @@ void handleResponse()
     }
     case st_blocked:
     {
-        w_signal.blink(250, 100, 10);
-        //
+        w_signal.signal(s_short, 10);
         #ifdef DEBUG
         Serial.println("");
         #endif //DEBUG
@@ -334,6 +336,7 @@ void handleResponse()
     // errors:
     case er_no_srvr_cnctn:
     {
+        w_signal.signal(s_long, 3);
         #ifdef DEBUG
         Serial.println("error: no server connection");
         #endif //DEBUG
@@ -341,6 +344,7 @@ void handleResponse()
     }
     case er_request:
     {
+        w_signal.signal(s_short, 5);
         #ifdef DEBUG
         Serial.println("error: wrong server request");
         #endif //DEBUG
@@ -348,6 +352,7 @@ void handleResponse()
     }
     case er_no_response:
     {
+        w_signal.signal(s_medium , 3);
         #ifdef DEBUG
         Serial.println("error: no response from server");
         #endif //DEBUG
@@ -355,6 +360,7 @@ void handleResponse()
     }
     case er_json:
     {
+        w_signal.signal(s_short, 5);
         #ifdef DEBUG
         Serial.println("error: wrong json deserialization");
         #endif //DEBUG
@@ -362,6 +368,7 @@ void handleResponse()
     }
     case er_timeout:
     {
+        w_signal.signal(s_medium, 3);
         #ifdef DEBUG
         Serial.println("error: server connection timeout");
         #endif //DEBUG

@@ -1,6 +1,6 @@
 #include "WiegandSignal.h"
 
-WiegnadSignal::WiegnadSignal(uint8_t led_pin, uint8_t zum_pin)
+WiegandSignal::WiegandSignal(uint8_t led_pin, uint8_t zum_pin)
 {
     this->led_pin = led_pin;
     this->zum_pin = zum_pin;
@@ -9,29 +9,23 @@ WiegnadSignal::WiegnadSignal(uint8_t led_pin, uint8_t zum_pin)
     pinMode(zum_pin, OUTPUT);
 }
 
-void WiegnadSignal::blink(uint8_t blink_time, uint8_t blink_period, uint8_t count)
-{
-    for (size_t i = 0; i < count; i++)
-    {
-        digitalWrite(led_pin, HIGH);
-        delay(blink_time);
-        digitalWrite(led_pin, LOW);
-        delay(blink_period);
-    }
-}
-
-void WiegnadSignal::beep(uint8_t beep_time, uint8_t beep_period, uint8_t count)
+void WiegandSignal::signal(SignalLength length, uint8_t count)
 {
     for (size_t i = 0; i < count; i++)
     {
         digitalWrite(zum_pin, HIGH);
-        delay(beep_time);
+        digitalWrite(led_pin, HIGH);
+
+        delay(length);
+
         digitalWrite(zum_pin, LOW);
-        delay(beep_period);
+        digitalWrite(led_pin, LOW);
+
+        delay(length);
     }
 }
 
-void WiegnadSignal::updateLed(uint8_t blink_time, uint8_t blink_period)
+void WiegandSignal::updateLed(uint8_t blink_time, uint8_t blink_period)
 {
     if (led_state)
     {
@@ -53,7 +47,7 @@ void WiegnadSignal::updateLed(uint8_t blink_time, uint8_t blink_period)
     }
 }
 
-void WiegnadSignal::updateZum(uint8_t beep_time, uint8_t beep_period)
+void WiegandSignal::updateZum(uint8_t beep_time, uint8_t beep_period)
 {
     if (zum_state)
     {

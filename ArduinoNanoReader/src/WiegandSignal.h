@@ -1,14 +1,12 @@
 #include <Arduino.h>
 
-class WiegnadSignal
+class WiegandSignal
 {
 public:
-    WiegnadSignal(uint8_t led_pin, uint8_t zum_pin);
+    WiegandSignal(uint8_t led_pin, uint8_t zum_pin);
 
-    // blink with led for count times (function uses delay)
-    void blink(uint8_t blink_time, uint8_t blink_period, uint8_t count);
-    // beep with zummer for count times (function uses delay)
-    void beep(uint8_t zum_time, uint8_t zum_period, uint8_t count);
+    // blink and beep for time with period for count times (function uses delay!)
+    void signal(SignalLength length, uint8_t count);
 
     // blink with led (via timer) till you call this function
     void updateLed(uint8_t blink_time, uint8_t blink_period);
@@ -26,4 +24,11 @@ private:
     uint8_t zum_pin;
     uint8_t zum_time;
     uint8_t zum_period;
+};
+
+enum SignalLength 
+{
+    s_short = 250,
+    s_medium = 500,
+    s_long = 1000
 };
