@@ -289,6 +289,11 @@ void handleResponse()
     {
     case st_denied:
     {
+        for (size_t i = 0; i < 5; i++)
+        {
+            /* code */
+        }
+        
         #ifdef DEBUG
         Serial.println("access denied");
         #endif //DEBUG
