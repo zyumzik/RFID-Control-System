@@ -28,6 +28,8 @@ Code written by me:
 
 [Timer class](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/Timer.h)
 
+[WiegandSignal class](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/WiegandSignal.h)
+
 
 Connection scheme:
 
