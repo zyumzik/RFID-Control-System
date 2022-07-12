@@ -62,24 +62,25 @@ uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 #pragma endregion //SERVER_SETTINGS
 
 #pragma region SERVER_STATES
-
+                                                
 // responses:
-const uint8_t   st_denied           = 0;          // access denied
-const uint8_t   st_allow            = 1;          // access allowed
-const uint8_t   st_rest_denied      = 2;          // access denied for restricted area
-const uint8_t   st_rest_allow       = 3;          // access allowed for restricted area
-const uint8_t   st_temp_denied      = 4;          // access temporary denied
+const uint8_t   st_unknown          = 0;        // unknown state
+const uint8_t   st_allow            = 1;        // access allowed
+const uint8_t   st_re_entry         = 2;        // re-entry
+const uint8_t   st_denied           = 3;        // access denied
+const uint8_t   st_invalid          = 4;        // invalid card (database does not contain such card)
+const uint8_t   st_blocked          = 5;        // card is blocked
 
-const uint8_t   st_reg_device       = 90;         // registration of device (check for similar device id in readers)
-const uint8_t   st_set_device_id    = 92;         // setting device id
+const uint8_t   st_reg_device       = 90;       // registration of device (check for similar device id in readers)
+const uint8_t   st_set_device_id    = 92;       // setting device id
 
 // errors:
-const uint8_t   er_no_srvr_cnctn    = 95;         // no server connection             | !client.connect(server, port)
-const uint8_t   er_request          = 96;         // wrong server request             | !client.find("\r\n\r\n")
-const uint8_t   er_no_response      = 97;         // no response from server          | json {"id":0,"kod":0,"status":0}
-const uint8_t   er_json             = 98;         // json deserialization error       | if (DeserializationError)
-const uint8_t   er_timeout          = 99;         // server connection timeout        | !client.available()
-const uint8_t   er_no_ethr_cnctn    = 100;        // no ethernet connection           | !ethernetConnected()
+const uint8_t   er_no_srvr_cnctn    = 95;       // no server connection             | !client.connect(server, port)
+const uint8_t   er_request          = 96;       // wrong server request             | !client.find("\r\n\r\n")
+const uint8_t   er_no_response      = 97;       // no response from server          | json {"id":0,"kod":0,"status":0}
+const uint8_t   er_json             = 98;       // json deserialization error       | if (DeserializationError)
+const uint8_t   er_timeout          = 99;       // server connection timeout        | !client.available()
+const uint8_t   er_no_ethr_cnctn    = 100;      // no ethernet connection           | !ethernetConnected()
 
 #pragma endregion //SERVER_STATES
 

@@ -57,24 +57,25 @@ WiegnadSignal   w_signal(w_led_pin, w_zum_pin); // object for better led and zum
 #pragma endregion //WIEGAND_SETTINGS
 
 #pragma region SERVER_STATES
-
+                                                
 // responses:
-const uint8_t   st_denied           = 0;          // access denied
-const uint8_t   st_allow            = 1;          // access allowed
-const uint8_t   st_rest_denied      = 2;          // access denied for restricted area
-const uint8_t   st_rest_allow       = 3;          // access allowed for restricted area
-const uint8_t   st_temp_denied      = 4;          // access temporary denied
+const uint8_t   st_unknown          = 0;        // unknown state
+const uint8_t   st_allow            = 1;        // access allowed
+const uint8_t   st_re_entry         = 2;        // re-entry
+const uint8_t   st_denied           = 3;        // access denied
+const uint8_t   st_invalid          = 4;        // invalid card (database does not contain such card)
+const uint8_t   st_blocked          = 5;        // card is blocked
 
-const uint8_t   st_reg_device       = 90;         // registration of device (check for similar device id in readers)
-const uint8_t   st_set_device_id    = 92;         // setting device id
+const uint8_t   st_reg_device       = 90;       // registration of device (check for similar device id in readers)
+const uint8_t   st_set_device_id    = 92;       // setting device id
 
 // errors:
-const uint8_t   er_no_srvr_cnctn    = 95;         // no server connection             | !client.connect(server, port)
-const uint8_t   er_request          = 96;         // wrong server request             | !client.find("\r\n\r\n")
-const uint8_t   er_no_response      = 97;         // no response from server          | json {"id":0,"kod":0,"status":0}
-const uint8_t   er_json             = 98;         // json deserialization error       | if (DeserializationError)
-const uint8_t   er_timeout          = 99;         // server connection timeout        | !client.available()
-const uint8_t   er_no_ethr_cnctn    = 100;        // no ethernet connection           | !ethernetConnected()
+const uint8_t   er_no_srvr_cnctn    = 95;       // no server connection             | !client.connect(server, port)
+const uint8_t   er_request          = 96;       // wrong server request             | !client.find("\r\n\r\n")
+const uint8_t   er_no_response      = 97;       // no response from server          | json {"id":0,"kod":0,"status":0}
+const uint8_t   er_json             = 98;       // json deserialization error       | if (DeserializationError)
+const uint8_t   er_timeout          = 99;       // server connection timeout        | !client.available()
+const uint8_t   er_no_ethr_cnctn    = 100;      // no ethernet connection           | !ethernetConnected()
 
 #pragma endregion //SERVER_STATES
 
@@ -265,12 +266,12 @@ void handleResponse()
 
     switch (message.state_id)
     {
-    case st_denied:
+    case st_unknown:
     {
-        w_signal.blink(250, 250, 5);
-        
+        w_signal.blink(500, 500, 5);
+        //w_signal.beep(500, 500, 5);
         #ifdef DEBUG
-        Serial.println("access denied");
+        Serial.println("unknown status");
         #endif //DEBUG
         break;
     }
@@ -278,31 +279,46 @@ void handleResponse()
     {
         #ifdef DEBUG
         Serial.println("access allowed");
-        #endif // DEBUG
-        break;
-    }
-    case st_rest_denied:
-    {
-        #ifdef DEBUG
-        Serial.println("access denied in restricted area");
         #endif //DEBUG
         break;
     }
-    case st_rest_allow:
+    case st_re_entry:
     {
+        w_signal.blink(500, 500, 3);
+        //w_signal.beep(500, 500, 2);
         #ifdef DEBUG
-        Serial.println("access allowed in restricted area");
+        Serial.println("re-entry");
         #endif //DEBUG
         break;
     }
-    case st_temp_denied:
+    case st_denied:
     {
+        w_signal.blink(250, 250, 10);
+        //w_signal.beep(250, 250, 10);
         #ifdef DEBUG
-        Serial.println("access temporary denied");
+        Serial.println("access denied");
         #endif //DEBUG
         break;
     }
-    
+    case st_invalid:
+    {
+        w_signal.blink(250, 250, 3);
+        //
+        #ifdef DEBUG
+        Serial.println("invalid card");
+        #endif //DEBUG
+        break;
+    }
+    case st_blocked:
+    {
+        w_signal.blink(250, 100, 10);
+        //
+        #ifdef DEBUG
+        Serial.println("");
+        #endif //DEBUG
+        break;
+    }
+
     case st_set_device_id:
     {
         device_id = message.card_id;
