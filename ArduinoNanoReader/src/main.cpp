@@ -6,7 +6,6 @@
 */
 
 #include <Arduino.h>
-#include <ArduinoUniqueID.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -17,11 +16,11 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.3";      // program version
+const String    program_version = "0.9.4";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
-unsigned long   device_id       = 801;          // unique ID of reader device
+unsigned long   device_id       = 0;            // unique ID of reader device
 unsigned long   read_delay      = 1000;         // reading card delay
 unsigned long   read_last       = 0;            // last read card time
 unsigned long   handle_delay    = 250;          // handle received response delay (for skipping default wiegand blink and beep)
@@ -64,21 +63,23 @@ uint32_t        w_zum_period = 5000;            // period of zum beeping
 
 #pragma region SERVER_STATES
 
-const uint8_t   st_no_rs_cnctn   = 94;          // no RS485 connection              | 
-const uint8_t   st_no_srvr_cnctn = 95;          // no ethernet connection           | !client.connect(server, port)
-const uint8_t   st_request_error = 96;          // wrong server request             | !client.find("\r\n\r\n")
-const uint8_t   st_no_response   = 97;          // no response from server          | json {"id":0,"kod":0,"status":0}
-const uint8_t   st_json_error    = 98;          // json deserialization error       | if (DeserializationError)
-const uint8_t   st_timeout_error = 99;          // server connection timeout        | !client.available()
-const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection           | !ethernetConnected()
-const uint8_t   st_get_device_id = 101;         // request for giving device id     |
-const uint8_t   st_set_device_id = 102;         // response for giving device id    |
+// responses:
+const uint8_t   st_denied           = 0;          // access denied
+const uint8_t   st_allow            = 1;          // access allowed
+const uint8_t   st_rest_denied      = 2;          // access denied for restricted area
+const uint8_t   st_rest_allow       = 3;          // access allowed for restricted area
+const uint8_t   st_temp_denied      = 4;          // access temporary denied
 
-const uint8_t   st_denied        = 0;           // access denied
-const uint8_t   st_allow         = 1;           // access allowed
-const uint8_t   st_rest_denied   = 2;           // access denied for restricted area
-const uint8_t   st_rest_allow    = 3;           // access allowed for restricted area
-const uint8_t   st_temp_denied   = 4;           // access temporary denied
+const uint8_t   st_reg_device       = 90;         // registration of device (check for similar device id in readers)
+const uint8_t   st_set_device_id    = 92;         // setting device id
+
+// errors:
+const uint8_t   er_no_srvr_cnctn    = 95;         // no server connection             | !client.connect(server, port)
+const uint8_t   er_request          = 96;         // wrong server request             | !client.find("\r\n\r\n")
+const uint8_t   er_no_response      = 97;         // no response from server          | json {"id":0,"kod":0,"status":0}
+const uint8_t   er_json             = 98;         // json deserialization error       | if (DeserializationError)
+const uint8_t   er_timeout          = 99;         // server connection timeout        | !client.available()
+const uint8_t   er_no_ethr_cnctn    = 100;        // no ethernet connection           | !ethernetConnected()
 
 #pragma endregion //SERVER_STATES
 
@@ -112,9 +113,11 @@ void wiegandBlink(unsigned long blinkMs, unsigned long delayMs);
 
 void setup()
 {
-    //clearMemory();
+    // uncomment lines below to save some unique id to EEPROM
+    // clearMemory();
+    // saveDeviceId(0, -unique id-);    
 
-    //device_id = loadDeviceId(0);
+    device_id = loadDeviceId(0);
 
     wiegand.begin(w_rx_pin, w_tx_pin);
     pinMode(w_zum_pin, OUTPUT);
@@ -124,17 +127,6 @@ void setup()
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
     
-    // request for new device id
-    // if (device_id == 0)
-    // {
-    //     Serial.println("requesting new id...");
-    //     sendData(device_id, 
-    //         0, 
-    //         st_get_device_id, 
-    //         0
-    //     );
-    // }
-
 #ifdef DEBUG
     Serial.begin(serial_baud);
     while (!Serial);
@@ -143,6 +135,14 @@ void setup()
         String("\nstart working on ") + serial_baud + " baud speed" + 
         String("\ndevice id: ") + device_id);
 #endif //DEBUG
+
+    // registering new connected device
+    sendData(
+        device_id,
+        0,
+        st_reg_device,
+        0
+    );
 }
 
 void loop()
@@ -285,34 +285,93 @@ void handleResponse()
         
     delay(handle_delay);
 
-    if (message.state_id == st_denied)
+    switch (message.state_id)
     {
+    case st_denied:
+    {
+        #ifdef DEBUG
         Serial.println("access denied");
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_allow)
+    case st_allow:
     {
+        #ifdef DEBUG
         Serial.println("access allowed");
+        #endif // DEBUG
+        break;
     }
-    else if (message.state_id == st_no_srvr_cnctn)
+    case st_rest_denied:
     {
-        Serial.println("no server connection");
+        #ifdef DEBUG
+        Serial.println("access denied in restricted area");
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_request_error)
+    case st_rest_allow:
     {
-        Serial.println("wrong server request");
+        #ifdef DEBUG
+        Serial.println("access allowed in restricted area");
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_no_response)
+    case st_temp_denied:
     {
-        Serial.println("no response from server");
+        #ifdef DEBUG
+        Serial.println("access temporary denied");
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_json_error)
+    
+    case st_set_device_id:
     {
-        Serial.println("response deserialization error");
+        device_id = message.card_id;
+        saveDeviceId(0, device_id);
+
+        #ifdef DEBUG
+        Serial.print("device id set to: ");
+        Serial.println(device_id);
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_timeout_error)
+    
+    // errors:
+    case er_no_srvr_cnctn:
     {
+        #ifdef DEBUG
+        Serial.println("error: no server connection");
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_no_ethr_cnctn)
+    case er_request:
+    {
+        #ifdef DEBUG
+        Serial.println("error: wrong server request");
+        #endif //DEBUG
+        break;
+    }
+    case er_no_response:
+    {
+        #ifdef DEBUG
+        Serial.println("error: no response from server");
+        #endif //DEBUG
+        break;
+    }
+    case er_json:
+    {
+        #ifdef DEBUG
+        Serial.println("error: wrong json deserialization");
+        #endif //DEBUG
+        break;
+    }
+    case er_timeout:
+    {
+        #ifdef DEBUG
+        Serial.println("error: server connection timeout");
+        #endif //DEBUG
+        break;
+    }
+    case er_no_ethr_cnctn:
     {
         if (message.other_id == 0)
         {
@@ -322,27 +381,24 @@ void handleResponse()
         {
             ethernet_flag = true;
         }
-#ifdef DEBUG
+        #ifdef DEBUG
         Serial.print("ethernet connection: ");
         Serial.println(message.other_id);
-#endif //DEBUG
+        #endif //DEBUG
+        break;
     }
-    else if (message.state_id == st_set_device_id)
-    {
-        Serial.print("setting device id: ");
-        Serial.println(message.card_id);
-        device_id = message.card_id;
-        saveDeviceId(0, device_id);
-    }
+    
     // unknown state
-    else
+    default:
     {
-#ifdef DEBUG
-        Serial.println("unknown state");
-#endif //DEBUG
+        #ifdef DEBUG
+        Serial.println("unknown state. message not handled");
+        #endif //DEBUG
+        break;
+    }
     }
 
-    message.clean();  // ???
+    message.clean();
 }
 
 void wiegandBeep(unsigned long beepMs, unsigned long delayMs)

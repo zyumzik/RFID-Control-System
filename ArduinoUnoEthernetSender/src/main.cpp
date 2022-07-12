@@ -19,7 +19,7 @@
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
 void(* resetFunc) (void) = 0;                   // reset Arduino Uno function
-const String    program_version = "0.9.3";      // program version
+const String    program_version = "0.9.4";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
@@ -63,21 +63,23 @@ uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma region SERVER_STATES
 
-const uint8_t   st_no_rs_cnctn   = 94;          // no RS485 connection              | 
-const uint8_t   st_no_srvr_cnctn = 95;          // no ethernet connection           | !client.connect(server, port)
-const uint8_t   st_request_error = 96;          // wrong server request             | !client.find("\r\n\r\n")
-const uint8_t   st_no_response   = 97;          // no response from server          | json {"id":0,"kod":0,"status":0}
-const uint8_t   st_json_error    = 98;          // json deserialization error       | if (DeserializationError)
-const uint8_t   st_timeout_error = 99;          // server connection timeout        | !client.available()
-const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection           | !ethernetConnected()
-const uint8_t   st_get_device_id = 101;         // request for giving device id     |
-const uint8_t   st_set_device_id = 102;         // response for giving device id    |
+// responses:
+const uint8_t   st_denied           = 0;          // access denied
+const uint8_t   st_allow            = 1;          // access allowed
+const uint8_t   st_rest_denied      = 2;          // access denied for restricted area
+const uint8_t   st_rest_allow       = 3;          // access allowed for restricted area
+const uint8_t   st_temp_denied      = 4;          // access temporary denied
 
-const uint8_t   st_denied        = 0;           // access denied
-const uint8_t   st_allow         = 1;           // access allowed
-const uint8_t   st_rest_denied   = 2;           // access denied for restricted area
-const uint8_t   st_rest_allow    = 3;           // access allowed for restricted area
-const uint8_t   st_temp_denied   = 4;           // access temporary denied
+const uint8_t   st_reg_device       = 90;         // registration of device (check for similar device id in readers)
+const uint8_t   st_set_device_id    = 92;         // setting device id
+
+// errors:
+const uint8_t   er_no_srvr_cnctn    = 95;         // no server connection             | !client.connect(server, port)
+const uint8_t   er_request          = 96;         // wrong server request             | !client.find("\r\n\r\n")
+const uint8_t   er_no_response      = 97;         // no response from server          | json {"id":0,"kod":0,"status":0}
+const uint8_t   er_json             = 98;         // json deserialization error       | if (DeserializationError)
+const uint8_t   er_timeout          = 99;         // server connection timeout        | !client.available()
+const uint8_t   er_no_ethr_cnctn    = 100;        // no ethernet connection           | !ethernetConnected()
 
 #pragma endregion //SERVER_STATES
 
@@ -169,7 +171,7 @@ void ethernetConnect()
 #ifdef DEBUG
         Serial.println("ethernet not connected...");
 #endif //DEBUG
-        sendBroadcast(st_no_ethr_cnctn, 0);
+        sendBroadcast(er_no_ethr_cnctn, 0);
         resetFunc();
         while(!ethernetConnected())
         {
@@ -213,7 +215,7 @@ void ethernetConnect()
     Serial.println("\n*****\n");
 #endif //DEBUG
 
-    sendBroadcast(st_no_ethr_cnctn, 1);
+    sendBroadcast(er_no_ethr_cnctn, 1);
 }
 
 void sendServer()
@@ -230,7 +232,7 @@ void sendServer()
             sendData(
                 message.device_id,
                 message.card_id,
-                st_no_ethr_cnctn,
+                er_no_ethr_cnctn,
                 0
             );
             ethernetConnect();
@@ -240,7 +242,7 @@ void sendServer()
             sendData(
                 message.device_id, 
                 message.card_id, 
-                st_no_srvr_cnctn,
+                er_no_srvr_cnctn,
                 0
             );
         }
@@ -278,7 +280,6 @@ void sendServer()
     Serial.print(message.card_id);
     Serial.print("&kod=");
     Serial.println(message.device_id);
-
 #endif //DEBUG
 
     // rare error check
@@ -291,7 +292,7 @@ void sendServer()
         sendData(
             message.device_id,
             message.card_id,
-            st_request_error,
+            er_request,
             0
         );
         return;
@@ -328,7 +329,7 @@ void receiveServer()
             sendData(
                 message.device_id, 
                 message.card_id, 
-                st_json_error, 
+                er_json, 
                 0
             );
         }
@@ -365,7 +366,7 @@ void receiveServer()
                 sendData(
                     message.device_id,
                     message.card_id,
-                    st_no_response,
+                    er_no_response,
                     0
                 );
             }
@@ -389,7 +390,7 @@ void receiveServer()
         sendData(
             message.device_id,
             message.card_id,
-            st_timeout_error,
+            er_timeout,
             0
         );
     }
