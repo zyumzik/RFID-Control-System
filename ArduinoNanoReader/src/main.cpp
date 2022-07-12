@@ -71,8 +71,8 @@ const uint8_t   st_no_response   = 97;          // no response from server      
 const uint8_t   st_json_error    = 98;          // json deserialization error       | if (DeserializationError)
 const uint8_t   st_timeout_error = 99;          // server connection timeout        | !client.available()
 const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection           | !ethernetConnected()
-const uint8_t   st_get_device_id = 300;         // request for giving device id     |
-const uint8_t   st_set_device_id = 301;         // response for giving device id    |
+const uint8_t   st_get_device_id = 101;         // request for giving device id     |
+const uint8_t   st_set_device_id = 102;         // response for giving device id    |
 
 const uint8_t   st_denied        = 0;           // access denied
 const uint8_t   st_allow         = 1;           // access allowed
@@ -83,6 +83,9 @@ const uint8_t   st_temp_denied   = 4;           // access temporary denied
 #pragma endregion //SERVER_STATES
 
 #pragma region FUNCTION_DECLARATION
+
+// clear EEPROM
+void clearMemory();
 
 // save device id to EEPROM
 void saveDeviceId(uint8_t address, unsigned long id);
@@ -109,7 +112,9 @@ void wiegandBlink(unsigned long blinkMs, unsigned long delayMs);
 
 void setup()
 {
-    device_id = loadDeviceId(0);
+    //clearMemory();
+
+    //device_id = loadDeviceId(0);
 
     wiegand.begin(w_rx_pin, w_tx_pin);
     pinMode(w_zum_pin, OUTPUT);
@@ -120,14 +125,15 @@ void setup()
     easy_transfer.begin(details(message), &rs485);
     
     // request for new device id
-    if (device_id == 0)
-    {
-        sendData(device_id, 
-            0, 
-            st_get_device_id, 
-            0
-        );
-    }
+    // if (device_id == 0)
+    // {
+    //     Serial.println("requesting new id...");
+    //     sendData(device_id, 
+    //         0, 
+    //         st_get_device_id, 
+    //         0
+    //     );
+    // }
 
 #ifdef DEBUG
     Serial.begin(serial_baud);
@@ -137,16 +143,6 @@ void setup()
         String("\nstart working on ") + serial_baud + " baud speed" + 
         String("\ndevice id: ") + device_id);
 #endif //DEBUG
-    Serial.println("unique id: ");
-    for (size_t i = 0; i < UniqueIDsize; i++)
-    {
-        Serial.print(UniqueID8[i], HEX);
-        Serial.print(" ");
-    }
-    Serial.print("to long: ");
-    Serial.println(*((unsigned long*)UniqueID8));
-    Serial.println("*****\n");
-    
 }
 
 void loop()
@@ -206,6 +202,14 @@ void loop()
 }
 
 #pragma region FUNCTION_DESCRIPTION
+
+void clearMemory()
+{
+    for (int i = 0; i < EEPROM.length(); i++)
+    {
+        EEPROM.write(i, 0);
+    }
+}
 
 void saveDeviceId(uint8_t address, unsigned long id)
 {
@@ -283,21 +287,27 @@ void handleResponse()
 
     if (message.state_id == st_denied)
     {
+        Serial.println("access denied");
     }
     else if (message.state_id == st_allow)
     {
+        Serial.println("access allowed");
     }
     else if (message.state_id == st_no_srvr_cnctn)
     {
+        Serial.println("no server connection");
     }
     else if (message.state_id == st_request_error)
     {
+        Serial.println("wrong server request");
     }
     else if (message.state_id == st_no_response)
     {
+        Serial.println("no response from server");
     }
     else if (message.state_id == st_json_error)
     {
+        Serial.println("response deserialization error");
     }
     else if (message.state_id == st_timeout_error)
     {
@@ -319,8 +329,10 @@ void handleResponse()
     }
     else if (message.state_id == st_set_device_id)
     {
-        device_id = message.other_id;
-        saveDeviceId(0, message.other_id);
+        Serial.print("setting device id: ");
+        Serial.println(message.card_id);
+        device_id = message.card_id;
+        saveDeviceId(0, device_id);
     }
     // unknown state
     else

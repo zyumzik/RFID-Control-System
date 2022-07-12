@@ -17,8 +17,8 @@
 
 #pragma region GLOBAL_SETTINGS
 
-void(* resetFunc) (void) = 0;                   // reset Arduino Uno
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
+void(* resetFunc) (void) = 0;                   // reset Arduino Uno function
 const String    program_version = "0.9.3";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
@@ -70,8 +70,8 @@ const uint8_t   st_no_response   = 97;          // no response from server      
 const uint8_t   st_json_error    = 98;          // json deserialization error       | if (DeserializationError)
 const uint8_t   st_timeout_error = 99;          // server connection timeout        | !client.available()
 const uint8_t   st_no_ethr_cnctn = 100;         // no ethernet connection           | !ethernetConnected()
-const uint8_t   st_get_device_id = 300;         // request for giving device id     |
-const uint8_t   st_set_device_id = 301;         // response for giving device id    |
+const uint8_t   st_get_device_id = 101;         // request for giving device id     |
+const uint8_t   st_set_device_id = 102;         // response for giving device id    |
 
 const uint8_t   st_denied        = 0;           // access denied
 const uint8_t   st_allow         = 1;           // access allowed
