@@ -10,8 +10,9 @@
 #include <EEPROM.h>
 #include <Message.h>
 #include <SoftwareSerial.h>
-#include <Wiegand.h>
 #include <Timer.h>
+#include <Wiegand.h>
+#include <WiegandSignal.h>
 
 #pragma region GLOBAL_SETTINGS
 
@@ -23,7 +24,7 @@ unsigned long   broadcast_id    = 999;          // id for receiving broadcast me
 unsigned long   device_id       = 0;            // unique ID of reader device
 unsigned long   read_delay      = 1000;         // reading card delay
 unsigned long   read_last       = 0;            // last read card time
-unsigned long   handle_delay    = 250;          // handle received response delay (for skipping default wiegand blink and beep)
+unsigned long   handle_delay    = 500;          // handle received response delay (for skipping default wiegand blink and beep)
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
@@ -51,13 +52,7 @@ uint8_t         w_tx_pin  = 3;                  // wiegand transmit pin
 uint8_t         w_zum_pin = 6;                  // wiegand built-in zummer control pin
 uint8_t         w_led_pin = 7;                  // wiegand built-in led control pin
 unsigned long   w_last_card;                    // last read card id
-
-bool            w_led_state = false;            // state of wiegand led (true if switched on)
-bool            w_zum_state = false;            // state of wiegand zum (true if switched on)
-Timer           w_led_timer;                    // timer for wiegand blinking
-Timer           w_zum_timer;                    // timer for wiegand beeping
-uint32_t        w_led_period = 100;             // period of led blinking
-uint32_t        w_zum_period = 5000;            // period of zum beeping
+WiegnadSignal   w_signal(w_led_pin, w_zum_pin); // object for better led and zummer signaling
 
 #pragma endregion //WIEGAND_SETTINGS
 
@@ -103,12 +98,6 @@ unsigned long wiegandToDecimal(unsigned long code);
 // handle response from server
 void handleResponse();
 
-// makes sound for beepMs time and delayMs delay
-void wiegandBeep(unsigned long beepMs, unsigned long delayMs);
-
-// blinks for beepMs time and delayMs delay
-void wiegandBlink(unsigned long blinkMs, unsigned long delayMs);
-
 #pragma endregion //FUNCTION_DECLARATION
 
 void setup()
@@ -122,8 +111,6 @@ void setup()
     wiegand.begin(w_rx_pin, w_tx_pin);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
-    w_led_timer.begin(w_led_period);
-    w_zum_timer.begin(w_zum_period);
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
     
@@ -147,13 +134,12 @@ void setup()
 
 void loop()
 {
+    // too much time passed since last send (no response from Arduino Uno)
     if (rs_wait_timer.update())
     {
         rs_connected = false;
-#ifdef DEBUG
-        Serial.println("no RS485 connection...");
-#endif //DEBUG
     }
+
     // received message from ArduinoUNO
     if (easy_transfer.receiveData())
     {
@@ -163,21 +149,13 @@ void loop()
     }
 
     // blinking with wiegand led if Arduino Uno (master) has no ethernet connection or no RS485 connection
-    if (!ethernet_flag || !rs_connected)
+    if (!rs_connected)
     {
-        if (w_led_timer.update())
-        {
-            digitalWrite(w_led_pin, w_led_state);
-            w_led_state = !w_led_state;
-        }
-        if (!rs_connected)
-        {
-            if (w_zum_timer.update())
-            {
-                digitalWrite(w_zum_pin,w_zum_state);
-                w_zum_state = !w_zum_state;
-            }
-        }
+        w_signal.updateLed(1000, 1000);
+    }
+    else if (!ethernet_flag)
+    {
+        w_signal.updateLed(100, 100);
     }
 
     // read a card
@@ -289,10 +267,7 @@ void handleResponse()
     {
     case st_denied:
     {
-        for (size_t i = 0; i < 5; i++)
-        {
-            /* code */
-        }
+        w_signal.blink(250, 250, 5);
         
         #ifdef DEBUG
         Serial.println("access denied");
@@ -404,22 +379,6 @@ void handleResponse()
     }
 
     message.clean();
-}
-
-void wiegandBeep(unsigned long beepMs, unsigned long delayMs)
-{
-    digitalWrite(w_zum_pin, HIGH);
-    delay(beepMs);
-    digitalWrite(w_zum_pin, LOW);
-    delay(delayMs);
-}
-
-void wiegandBlink(unsigned long blinkMs, unsigned long delayMs)
-{
-    digitalWrite(w_led_pin, HIGH);
-    delay(blinkMs);
-    digitalWrite(w_led_pin, LOW);
-    delay(delayMs);
 }
 
 #pragma endregion //FUNCTION_DESCRIPTION
