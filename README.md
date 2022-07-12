@@ -26,6 +26,8 @@ Code written by me:
 
 [Message class](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/Message.h)
 
+[Timer class](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/Timer.h)
+
 
 Connection scheme:
 
