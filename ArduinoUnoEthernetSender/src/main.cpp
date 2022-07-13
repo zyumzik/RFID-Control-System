@@ -19,7 +19,7 @@
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
 void(* resetFunc) (void) = 0;                   // reset Arduino Uno function
-const String    program_version = "0.9.4";      // program version
+const String    program_version = "0.9.5";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages

@@ -17,14 +17,13 @@
 #pragma region GLOBAL_SETTINGS
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
-const String    program_version = "0.9.4";      // program version
+const String    program_version = "0.9.5";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
 unsigned long   device_id       = 0;            // unique ID of reader device
-unsigned long   read_delay      = 1000;         // reading card delay
-unsigned long   read_last       = 0;            // last read card time
-unsigned long   handle_delay    = 1000;         // handle received response delay (for skipping default wiegand blink and beep)
+unsigned long   handle_delay    = 0;            // handle received response delay (for skipping default wiegand blink and beep)
+unsigned long   last_handle     = 0;
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
@@ -53,6 +52,8 @@ uint8_t         w_zum_pin = 6;                  // wiegand built-in zummer contr
 uint8_t         w_led_pin = 7;                  // wiegand built-in led control pin
 unsigned long   w_last_card;                    // last read card id
 WiegandSignal   w_signal(w_led_pin, w_zum_pin); // object for better led and zummer signaling
+Timer           w_timer;                        // timer for reading card delay
+unsigned long   w_read_delay = 1000;            // delay for reading card
 
 #pragma endregion //WIEGAND_SETTINGS
 
@@ -110,6 +111,7 @@ void setup()
     device_id = loadDeviceId(0);
 
     wiegand.begin(w_rx_pin, w_tx_pin);
+    w_timer.begin(w_read_delay);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
     rs485.begin(rs_baud);
@@ -125,6 +127,7 @@ void setup()
 #endif //DEBUG
 
     // registering new connected device
+    delay(w_read_delay);
     sendData(
         device_id,
         0,
@@ -144,38 +147,45 @@ void loop()
     // received message from ArduinoUNO
     if (easy_transfer.receiveData())
     {
-        rs_connected = true;
-        rs_wait_timer.stop();
         handleResponse();
     }
 
-    // blinking with wiegand led if Arduino Uno (master) has no ethernet connection or no RS485 connection
+    // making signal if something is wrong
     if (!rs_connected)
     {
-        w_signal.updateLed(1000, 1000);
+        w_signal.update(WiegandSignal::Length::s_short, false, true);
     }
     else if (!ethernet_flag)
     {
-        w_signal.updateLed(100, 100);
+        w_signal.update(WiegandSignal::Length::s_medium, false, true);
+    }
+    else
+    {
+        w_signal.update();
     }
 
     // read a card
     if (wiegand.available())
     {
-        read_last = millis();
         w_last_card = wiegandToDecimal(wiegand.getCode());
-#ifdef DEBUG
-        Serial.println("read card id: " + String(w_last_card));
-        Serial.println("*****\n");
-#endif //DEBUG
-        if (ethernet_flag)
+        
+        if (w_timer.update())
         {
-            sendData(
-                device_id, 
-                w_last_card, 
-                0, 
-                0
-            );
+            // check for ethernet connection, signaling state
+            if (ethernet_flag && !w_signal.is_invoke)
+            {
+#ifdef DEBUG
+                Serial.println("read card id: " + String(w_last_card));
+                Serial.println("*****\n");
+#endif //DEBUG
+                sendData(
+                    device_id, 
+                    w_last_card, 
+                    0, 
+                    0
+                );
+                //delay(50);
+            }
         }
     }
 }
@@ -219,7 +229,8 @@ void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8
     message.set(device_id, card_id, state_id, other_id);
 
 #ifdef DEBUG
-    Serial.println("---send---");
+    Serial.print(millis());
+    Serial.println(":---send---");
     message.print();
     Serial.println("*****\n");
 #endif //DEBUG
@@ -247,8 +258,12 @@ unsigned long wiegandToDecimal(unsigned long code)
 
 void handleResponse()
 {
+    rs_connected = true;
+    rs_wait_timer.stop();
+
 #ifdef DEBUG
-    Serial.println("-received-");
+    Serial.print(millis());
+    Serial.println(":-received-");
     message.print();
     Serial.println("*****\n");
 #endif // DEBUG
@@ -257,25 +272,24 @@ void handleResponse()
         message.device_id != device_id)
     {
 #ifdef DEBUG
-        Serial.println("message for another device");
+        Serial.println("message not handled");
 #endif //DEBUG
         return;
     }
         
     delay(handle_delay);
 
-    // TEST !!!!!!!!!!!!!
-    message.set(999, 0, st_re_entry, 0);
-
     // if error - long signal firstly
     if (message.state_id >= 90)
-        w_signal.signal(s_long, 1);
+    {
+        w_signal.invoke(WiegandSignal::Length::s_long, 1);
+    }
 
     switch (message.state_id)
     {
     case st_unknown:
     {
-        w_signal.signal(s_long, 3);
+        w_signal.invoke(WiegandSignal::Length::s_long, 3);
         #ifdef DEBUG
         Serial.println("unknown status");
         #endif //DEBUG
@@ -290,7 +304,7 @@ void handleResponse()
     }
     case st_re_entry:
     {
-        w_signal.signal(s_long, 2);
+        w_signal.invoke(WiegandSignal::Length::s_long, 2);
         #ifdef DEBUG
         Serial.println("re-entry");
         #endif //DEBUG
@@ -298,7 +312,7 @@ void handleResponse()
     }
     case st_denied:
     {
-        w_signal.signal(s_medium, 10);
+        w_signal.invoke(WiegandSignal::Length::s_medium, 10);
         #ifdef DEBUG
         Serial.println("access denied");
         #endif //DEBUG
@@ -306,7 +320,7 @@ void handleResponse()
     }
     case st_invalid:
     {
-        w_signal.signal(s_medium, 5);
+        w_signal.invoke(WiegandSignal::Length::s_medium, 5);
         #ifdef DEBUG
         Serial.println("invalid card");
         #endif //DEBUG
@@ -314,7 +328,7 @@ void handleResponse()
     }
     case st_blocked:
     {
-        w_signal.signal(s_short, 10);
+        w_signal.invoke(WiegandSignal::Length::s_short, 10);
         #ifdef DEBUG
         Serial.println("");
         #endif //DEBUG
@@ -336,7 +350,7 @@ void handleResponse()
     // errors:
     case er_no_srvr_cnctn:
     {
-        w_signal.signal(s_long, 3);
+        w_signal.invoke(WiegandSignal::Length::s_long, 3);
         #ifdef DEBUG
         Serial.println("error: no server connection");
         #endif //DEBUG
@@ -344,7 +358,7 @@ void handleResponse()
     }
     case er_request:
     {
-        w_signal.signal(s_short, 5);
+        w_signal.invoke(WiegandSignal::Length::s_short, 5);
         #ifdef DEBUG
         Serial.println("error: wrong server request");
         #endif //DEBUG
@@ -352,7 +366,7 @@ void handleResponse()
     }
     case er_no_response:
     {
-        w_signal.signal(s_medium , 3);
+        w_signal.invoke(WiegandSignal::Length::s_medium , 3);
         #ifdef DEBUG
         Serial.println("error: no response from server");
         #endif //DEBUG
@@ -360,7 +374,7 @@ void handleResponse()
     }
     case er_json:
     {
-        w_signal.signal(s_short, 5);
+        w_signal.invoke(WiegandSignal::Length::s_short, 5);
         #ifdef DEBUG
         Serial.println("error: wrong json deserialization");
         #endif //DEBUG
@@ -368,7 +382,7 @@ void handleResponse()
     }
     case er_timeout:
     {
-        w_signal.signal(s_medium, 3);
+        w_signal.invoke(WiegandSignal::Length::s_medium, 3);
         #ifdef DEBUG
         Serial.println("error: server connection timeout");
         #endif //DEBUG

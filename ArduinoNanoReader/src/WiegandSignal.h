@@ -3,32 +3,29 @@
 class WiegandSignal
 {
 public:
+    enum Length
+    {
+        s_none = 0,
+        s_short = 100,
+        s_medium = 300,
+        s_long = 750
+    };
+
+    bool is_invoke;
+
     WiegandSignal(uint8_t led_pin, uint8_t zum_pin);
 
-    // blink and beep for time with period for count times (function uses delay!)
-    void signal(SignalLength length, uint8_t count);
+    // start async blinking and beeping. use update() function in loop(). returns time of signaling in ms
+    void invoke(Length length, uint8_t count);
 
-    // blink with led (via timer) till you call this function
-    void updateLed(uint8_t blink_time, uint8_t blink_period);
-    // beep with zummer (via timer) till you call this function
-    void updateZum(uint8_t beep_time, uint8_t beep_period);
+    // updates timer and makes signal if period passed.
+    void update(Length length = s_none, bool zum = true, bool led = true);
 private:
-    bool led_state;
-    uint32_t led_timer;
-    uint8_t led_pin;
-    uint8_t led_time;
-    uint8_t led_period;
-
-    bool zum_state;
-    uint32_t zum_timer;
-    uint8_t zum_pin;
-    uint8_t zum_time;
-    uint8_t zum_period;
+    bool        state;
+    Length      current_length;
+    uint32_t    timer;
+    uint8_t     invoke_counter;
+    uint8_t     led_pin;
+    uint8_t     zum_pin;
 };
 
-enum SignalLength 
-{
-    s_short = 250,
-    s_medium = 500,
-    s_long = 1000
-};

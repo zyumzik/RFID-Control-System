@@ -9,62 +9,46 @@ WiegandSignal::WiegandSignal(uint8_t led_pin, uint8_t zum_pin)
     pinMode(zum_pin, OUTPUT);
 }
 
-void WiegandSignal::signal(SignalLength length, uint8_t count)
+void WiegandSignal::invoke(Length length, uint8_t count)
 {
-    for (size_t i = 0; i < count; i++)
-    {
-        digitalWrite(zum_pin, HIGH);
-        digitalWrite(led_pin, HIGH);
-
-        delay(length);
-
-        digitalWrite(zum_pin, LOW);
-        digitalWrite(led_pin, LOW);
-
-        delay(length);
-    }
+    is_invoke = true;
+    current_length = length;
+    invoke_counter = count * 2;
+    state = false;
+    digitalWrite(led_pin, state);
+    digitalWrite(zum_pin, state);
 }
 
-void WiegandSignal::updateLed(uint8_t blink_time, uint8_t blink_period)
+void WiegandSignal::update(Length length = s_none, bool zum = true, bool led = true)
 {
-    if (led_state)
+    // update with periodic signal (without counter)
+    if (length != s_none)
     {
-        if (millis() >= led_timer + blink_time)
+        if (millis() >= timer + length)
         {
-            led_timer = millis();
-            led_state = !led_state;
-            digitalWrite(led_pin, led_state);
+            timer = millis();
+            state = !state;
+            if (led)
+                digitalWrite(led_pin, state);
+            if (zum)
+                digitalWrite(zum_pin, state);
         }
     }
-    else
-    {
-        if (millis() >= led_timer + blink_period)
-        {
-            led_timer = millis();
-            led_state = !led_state;
-            digitalWrite(led_pin, led_state);
-        }
-    }
-}
 
-void WiegandSignal::updateZum(uint8_t beep_time, uint8_t beep_period)
-{
-    if (zum_state)
+    // simple update (using counter)
+    if (length == s_none && zum && led && is_invoke)
     {
-        if (millis() >= zum_timer + beep_time)
+        if (millis() >= timer + current_length)
         {
-            zum_timer = millis();
-            zum_state = !zum_state;
-            digitalWrite(zum_pin, zum_state);
-        }
-    }
-    else
-    {
-        if (millis() >= zum_timer + beep_period)
-        {
-            zum_timer = millis();
-            zum_state = !zum_state;
-            digitalWrite(zum_pin, zum_state);
+            timer = millis();
+            state = !state;
+            digitalWrite(led_pin, state);
+            digitalWrite(zum_pin, state);
+            invoke_counter--;
+            if (invoke_counter <= 0)
+            {
+                is_invoke = false;
+            }
         }
     }
 }
