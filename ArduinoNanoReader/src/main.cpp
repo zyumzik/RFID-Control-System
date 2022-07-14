@@ -282,7 +282,7 @@ void handleResponse()
     // if error - long signal firstly
     if (message.state_id >= 90)
     {
-        w_signal.invoke(WiegandSignal::Length::s_long, 1);
+        w_signal.invoke(WiegandSignal::Length::s_long_long, 1);
     }
 
     switch (message.state_id)

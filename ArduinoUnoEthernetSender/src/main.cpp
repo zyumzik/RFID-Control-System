@@ -53,7 +53,7 @@ int             server_port             = 80;   // server port
 char*           server_name =                 
                 "skdmk.fd.mk.ua";               // server address
 String          server_request = 
-                "GET /skd.mk/baseadd.php?";     // GET request address
+                "GET /skd.mk/baseadd2.php?";     // GET request address
 
 // smart receive
 unsigned long   server_receive_max_wait = 600;  // time for waiting response from server
@@ -276,8 +276,8 @@ void sendServer()
     Serial.println();
     Serial.println();
 
-    Serial.print("browser link: " + String(server_name) + 
-    "/skd.mk/baseadd.php?id=");
+    Serial.print("browser link: " + String(server_name) +
+    "/skd.mk/baseadd2.php?id=");
     Serial.print(message.card_id);
     Serial.print("&kod=");
     Serial.println(message.device_id);

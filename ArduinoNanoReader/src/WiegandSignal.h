@@ -8,7 +8,8 @@ public:
         s_none = 0,
         s_short = 100,
         s_medium = 300,
-        s_long = 750
+        s_long = 750,
+        s_long_long = 1500
     };
 
     bool is_invoke;
