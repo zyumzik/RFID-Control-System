@@ -56,7 +56,7 @@ String          server_request =
                 "GET /skd.mk/baseadd2.php?";     // GET request address
 
 // smart receive
-unsigned long   server_receive_max_wait = 600;  // time for waiting response from server
+unsigned long   server_receive_max_wait = 500;  // time for waiting response from server
 uint8_t         server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma endregion //SERVER_SETTINGS

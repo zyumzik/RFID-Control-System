@@ -23,7 +23,6 @@ unsigned long   serial_baud     = 115200;       // serial baud speed
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
 unsigned long   device_id       = 0;            // unique ID of reader device
 unsigned long   handle_delay    = 0;            // handle received response delay (for skipping default wiegand blink and beep)
-unsigned long   last_handle     = 0;
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
