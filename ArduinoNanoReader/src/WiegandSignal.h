@@ -12,6 +12,7 @@ public:
         s_long_long = 1500
     };
 
+    // true if signal was invoke for certain count
     bool is_invoke;
 
     WiegandSignal(uint8_t led_pin, uint8_t zum_pin);

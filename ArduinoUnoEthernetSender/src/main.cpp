@@ -98,7 +98,7 @@ void sendServer();
 // receive response from server
 void receiveServer();
 
-// send message to Arduino Nano (RFID Reader)
+// send message to slave (Arduino Nano)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
 
 // send broadcast message (for all of devices connected by RS485)

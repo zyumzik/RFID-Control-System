@@ -35,10 +35,10 @@ uint8_t         rs_rx_pin = 4;                  // RS485 receive pin
 uint8_t         rs_tx_pin = 5;                  // RS485 transmit pin
 long            rs_baud   = 9600;               // RS485 baud rate (speed)
 SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // object for receiving and transmitting data via RS485
-bool            rs_connected = true;            // true if response from Arduino Uno is being receiving
-Timer           rs_wait_timer;                  // timer for waiting respinse from Arduino Uno
-unsigned long   rs_last_send = 0;               // last send to Arduino Uno
-unsigned long   rs_response_wait = 1500;        // time for waiting response from Arduino Uno
+bool            rs_connected = true;            // true if response from master is being receiving
+Timer           rs_wait_timer;                  // timer for waiting respinse from master
+unsigned long   rs_last_send = 0;               // last send time to master
+unsigned long   rs_response_wait = 1500;        // time for waiting response from master
 
 #pragma endregion //RS485_SETTINGS
 
@@ -90,7 +90,7 @@ void saveDeviceId(uint8_t address, unsigned long id);
 // load device id from EEPROM
 unsigned long loadDeviceId(uint8_t address);
 
-// send message to Arduino Uno (Ethernet Sender)
+// send message to master (Arduino Uno)
 void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
 
 // reverses code by bit
@@ -137,13 +137,13 @@ void setup()
 
 void loop()
 {
-    // too much time passed since last send (no response from Arduino Uno)
+    // too much time passed since last send (no response from master)
     if (rs_wait_timer.update())
     {
         rs_connected = false;
     }
 
-    // received message from ArduinoUNO
+    // received message from master
     if (easy_transfer.receiveData())
     {
         handleResponse();
