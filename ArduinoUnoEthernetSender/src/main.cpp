@@ -8,6 +8,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.hpp>
 #include <ArduinoJson.h>
+#include <Converter.h>
+//#include <Debug.h>
 #include <EthernetClient.h>
 #include <Ethernet3.h>
 #include <EasyTransfer.h>
@@ -19,7 +21,7 @@
 
 #define DEBUG                                   // comment this line to not write anything to Serial as debug
 void(* resetFunc) (void) = 0;                   // reset Arduino Uno function
-const String    program_version = "0.9.5";      // program version
+const String    program_version = "0.9.55";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
@@ -71,8 +73,8 @@ const uint8_t   st_denied           = 3;        // access denied
 const uint8_t   st_invalid          = 4;        // invalid card (database does not contain such card)
 const uint8_t   st_blocked          = 5;        // card is blocked
 
-const uint8_t   st_reg_device       = 90;       // registration of device (check for similar device id in readers)
-const uint8_t   st_set_device_id    = 92;       // setting device id
+const uint8_t   st_reg_device       = 50;       // registration of device (check for similar device id in readers)
+const uint8_t   st_set_device_id    = 51;       // setting device id
 
 // errors:
 const uint8_t   er_no_srvr_cnctn    = 95;       // no server connection             | !client.connect(server, port)
@@ -108,17 +110,15 @@ void sendBroadcast(uint8_t state_id, uint8_t other_id);
 
 void setup()
 {
+    Debug::begin(serial_baud, true);
+
     rs485.begin(rs_baud);
     SPI.begin();
     easy_transfer.begin(details(message), &rs485);
 
-#ifdef DEBUG
-    Serial.begin(serial_baud);
-    while (!Serial);
-    Serial.println(
+    Debug::log(
         String("Arduino Uno Ethernet Sender. V." + program_version) +
         String("\nstart working on ") + serial_baud + " baud speed");
-#endif //DEBUG
 
     ethernetConnect();
 }
@@ -132,11 +132,8 @@ void loop()
 
     if (easy_transfer.receiveData())
     {
-#ifdef DEBUG
-        Serial.println("-received-");
+        Debug::log("-RECEIVED-");
         message.print();
-        Serial.println("*****\n");
-#endif //DEBUG
 
         sendServer();
 
@@ -157,21 +154,10 @@ bool ethernetConnected()
 
 void ethernetConnect()
 {
-    // Serial.print("softreset: ");
-    // Serial.println(Ethernet.softreset());
-    // Ethernet.hardreset();
-    // Serial.print("maintain: ");
-    // Serial.println(Ethernet.maintain());
-    // Ethernet.setRtTimeOut(5000);
-    //w5500.softReset();
-    //W5500Class::resetSS();
-
     // base ethernet connecting
     if (!ethernetConnected())
     {
-#ifdef DEBUG
-        Serial.println("ethernet not connected...");
-#endif //DEBUG
+        Debug::log("ethernet not connected...");
         sendBroadcast(er_no_ethr_cnctn, 0);
         resetFunc();
         while(!ethernetConnected())
@@ -180,41 +166,28 @@ void ethernetConnect()
         }
     }
 
-#ifdef DEBUG
-    Serial.print("ethernet connected: ");
-    Serial.println(Ethernet.link());
-    Serial.print("ethernet speed: ");
-    Serial.println(Ethernet.speed());
-    Serial.println("connecting network...");
-#endif //DEBUG
+    Debug::log(
+        "ethernet connected: " + String(Ethernet.link()) +
+        "\nethernet speed: " + String(Ethernet.speed()) +
+        "\nconnecting network...");
 
     // connecting to network (using mac address and DHCP)
     if (Ethernet.begin(mac) == 0)
     {
         delay(reconnect_delay);
-#ifdef DEBUG
-        Serial.println("connection via DHCP is not established");
-        Serial.println("trying to reconnect...");
-#endif //DEBUG
+
+        Debug::log("connection via DHCP is not established" + 
+            String("\ntrying to reconnect..."));
+
         ethernetConnect();
     }
 
-#ifdef DEBUG
-    Serial.println("DHCP connection established");
-    Serial.print("ip: ");
-    for (int i = 0; i < 4; i++)
-    {
-        Serial.print(Ethernet.localIP()[i]);
-        Serial.print(".");
-    }
-    Serial.println(", subnet mask: ");
-    for (int i = 0; i < 4; i++)
-    {
-        Serial.print(Ethernet.subnetMask()[i]);
-        Serial.print(".");
-    }
-    Serial.println("\n*****\n");
-#endif //DEBUG
+    Debug::log("DHCP connection established" + 
+        String("\nip: ") + 
+        String(Ethernet.localIP()[0]) + "." +
+        String(Ethernet.localIP()[1]) + "." +
+        String(Ethernet.localIP()[2]) + "." +
+        String(Ethernet.localIP()[3]));
 
     sendBroadcast(er_no_ethr_cnctn, 1);
 }
@@ -223,13 +196,11 @@ void sendServer()
 {
     // no ethernet or server connection, trying to reconnect
     if (!client.connect(server_name, server_port))
-    {   
-#ifdef DEBUG
-        Serial.println("server connection not established");
-#endif //DEBUG
+    {
+        Debug::log("server connection not established");
         if (!ethernetConnected())
         {
-            Serial.println("ethernet connection not established");
+            Debug::log("ethernet connection not established");
             sendData(
                 message.device_id,
                 message.card_id,
@@ -262,33 +233,16 @@ void sendServer()
     client.println();
     client.println();
 
-#ifdef DEBUG
-    Serial.println("send http request:");
-    Serial.print(server_request);
-    Serial.print("id=");
-    Serial.print(message.card_id);
-    Serial.print("&kod=");
-    Serial.print(message.device_id);
-    Serial.println(" HTTP/1.1");
-    Serial.print("Host: ");
-    Serial.println(server_name);
-    Serial.println("Connection: close");
-    Serial.println();
-    Serial.println();
-
-    Serial.print("browser link: " + String(server_name) +
-    "/skd.mk/baseadd2.php?id=");
-    Serial.print(message.card_id);
-    Serial.print("&kod=");
-    Serial.println(message.device_id);
-#endif //DEBUG
+    Debug::log(
+        server_request + "id=" + String(message.card_id) + 
+        "&kod=" + String(message.device_id) + " HTTP/1.1" +
+        "\nHost: " + server_name + 
+        "\nConnection: close\n\n");
 
     // rare error check
     if (!client.find("\r\n\r\n"))
     {
-#ifdef DEBUG
-        Serial.println("invalid request (not sent)");
-#endif //DEBUG
+        Debug::log("invalid request (not sent)");
         client.stop();
         sendData(
             message.device_id,
@@ -322,10 +276,7 @@ void receiveServer()
         // deserialization error
         if (error)
         {
-#ifdef DEBUG
-            Serial.print("deserialization error: ");
-            Serial.println(error.c_str());
-#endif // DEBUG
+            Debug::log("deserialization error: " + String(error.c_str()));
             
             sendData(
                 message.device_id, 
@@ -340,30 +291,27 @@ void receiveServer()
             unsigned long json_device_id = strtoul(json["kod"].as<const char*>(), NULL, 0);
             unsigned long json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
             unsigned long json_state_id  = json["status"].as<int>();
-            //uint8_t         json_other_id   = json["other"].as<uint8_t>();  // not exist
-#ifdef DEBUG
-            Serial.println("serialized data from json:");
 
-            Serial.print("{id:");
-            Serial.print(json_card_id);
-            Serial.print(",kod:");
-            Serial.print(json_device_id);
-            Serial.print(",status:");
-            Serial.print(json_state_id);
-            Serial.println("}");
+            // Debug::print("serialized data from json: ");
+            // Debug::print(json_device_id);
+            // Debug::print("; ");
+            // Debug::print(json_card_id);
+            // Debug::print("; ");
+            // Debug::print(json_state_id);
+            // Debug::print("\n");
+                
+            Debug::log("serialized data from json: {" + 
+                S(json_device_id) + ";" + 
+                S(json_card_id) + ";" + 
+                S(json_state_id) + "}");
 
-            Serial.println("*****\n");
-
-            Serial.println("sending data from json...");
-#endif //DEBUG
             // no response from server
             if (json_device_id == 0 &&
                 json_card_id == 0 &&
                 json_state_id == 0)
             {
-#ifdef DEBUG
-                Serial.println("error: no response from server");
-#endif //DEBUG
+                Debug::log("error: no response from server");
+
                 sendData(
                     message.device_id,
                     message.card_id,
@@ -385,9 +333,8 @@ void receiveServer()
     }
     else
     {
-#ifdef DEBUG
-        Serial.println("error: response timeout");
-#endif // DEBUG
+        Debug::log("error: response timeout");
+
         sendData(
             message.device_id,
             message.card_id,
@@ -403,11 +350,8 @@ void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8
 {
     message.set(device_id, card_id, state_id, other_id);
 
-#ifdef DEBUG
-    Serial.println("---send---");
+    Debug::log("---SEND---");
     message.print();
-    Serial.println("*****\n");
-#endif //DEBUG
 
     easy_transfer.sendData();
 
@@ -418,11 +362,8 @@ void sendBroadcast(uint8_t state_id, uint8_t other_id)
 {
     message.set(broadcast_id, 0, state_id, other_id);
 
-#ifdef DEBUG
-    Serial.println("---send---");
+    Debug::log("---SEND-B-");
     message.print();
-    Serial.println("*****\n");
-#endif //DEBUG
 
     easy_transfer.sendData();
 

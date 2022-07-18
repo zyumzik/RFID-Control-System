@@ -5,11 +5,12 @@ class WiegandSignal
 public:
     enum Length
     {
-        s_none = 0,
-        s_short = 100,
-        s_medium = 300,
-        s_long = 750,
-        s_long_long = 1500
+        s_none          = 0,
+        s_short_short   = 50,
+        s_short         = 100,
+        s_medium        = 300,
+        s_long          = 750,
+        s_long_long     = 1500
     };
 
     // true if signal was invoke for certain count

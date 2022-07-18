@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Debug.h>
 
 #define DFLT_MSG_VAL 0
 
@@ -30,15 +31,19 @@ struct Message
 	// print message data
 	void print()
 	{
-		Serial.println("message:\n{");
-		Serial.print("\tdevice_id: ");
-		Serial.println(device_id);
-		Serial.print("\tcard_id:   ");
-		Serial.println(card_id);
-		Serial.print("\tstate_id:  ");
-		Serial.println(state_id);
-		Serial.print("\tother_id:  ");
-		Serial.println(other_id);
-		Serial.println("}");
+		// Debug::print("{ ");
+		// Debug::print(device_id);
+		// Debug::print("; ");
+		// Debug::print(card_id);
+		// Debug::print("; ");
+		// Debug::print(state_id);
+		// Debug::print("; ");
+		// Debug::print(other_id);
+		// Debug::print("}\n");
+
+		Debug::log("{ " + String(device_id) + "; " +
+			String(card_id) + "; " + 
+			String(state_id) + "; " +
+			String(other_id) + "}\n");
 	}
 };
