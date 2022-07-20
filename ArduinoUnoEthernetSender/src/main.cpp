@@ -129,6 +129,16 @@ void setup()
         serial_baud);
 
     ethernetConnect();
+
+    // test
+    message.set(801, 123123123);
+    debugf("RECEIVED:\t[ %u, %lu, %u, %u ]", 
+            message.device_id, 
+            message.card_id, 
+            message.state_id, 
+            message.other_id);
+    sendServer();
+    receiveServer();
 }
 
 void loop()
