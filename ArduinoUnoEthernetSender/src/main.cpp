@@ -9,8 +9,7 @@
 #include <ArduinoJson.hpp>
 #include <ArduinoJson.h>
 #include <EthernetClient.h>
-#include <Ethernet.h>
-//#include <Ethernet3.h>
+#include <Ethernet3.h>
 #include <EasyTransfer.h>
 #include <Message.h>
 #include <SoftwareSerial.h>
@@ -55,7 +54,7 @@ EthernetClient  client;                         // object for connecting etherne
 byte            mac[] = { 0x54, 0x34, 
                           0x41, 0x30, 
                           0x30, 0x35 };         // mac address of this device. must be unique in local network
-unsigned short  reconnect_delay = 1000;          // delay for try to reconnect ethernet
+unsigned short  reconnect_delay = 500;          // delay for try to reconnect ethernet
 
 #pragma endregion //V_ETHERNET
 
@@ -157,17 +156,26 @@ void loop()
 
 bool ethernetConnected()
 {
-    //if (Ethernet.linkStatus() == LinkON) //DOES NOT WORK
-    // if (Ethernet.linkStatus() == 0)
-    //     return true;
-    // else
-    //     return false;
-    return true;
+    if (Ethernet.link() == 1 && 
+        Ethernet.speed() != 0)
+        return true;
+    else
+        return false;
 }
 
 void ethernetConnect()
 {
-    
+    // base ethernet connecting
+    delay(reconnect_delay);
+    while (!ethernetConnected())
+    {
+        debug("ethernet not connected. reloading board...");
+        delay(reconnect_delay);
+        resetFunc();
+    }
+
+    debugf("ethernet connected. speed: %u", Ethernet.speed());
+
     // connecting to network (using mac address and DHCP)
     if (Ethernet.begin(mac) == 0)
     {
@@ -175,17 +183,14 @@ void ethernetConnect()
 
         debug("connection via DHCP is not established. reloading board...");
 
-        //resetFunc();
-        ethernetConnect();
+        resetFunc();
     }
 
-    debugf("DHCP connection established. ip (%u.%u.%u.%u). link status: %d. hardware status: %d", 
+    debugf("DHCP connection established. ip (%u.%u.%u.%u)", 
         Ethernet.localIP()[0],
         Ethernet.localIP()[1],
         Ethernet.localIP()[2],
-        Ethernet.localIP()[3],
-        Ethernet.linkStatus(),
-        Ethernet.hardwareStatus());
+        Ethernet.localIP()[3]);
 
     sendBroadcast(er_no_ethr_cnctn, 1);
 }
@@ -267,7 +272,6 @@ void receiveServer()
     // available data in cleint for read
     if (client.available())
     {
-        debug("client available");
         StaticJsonDocument<256> json;
         DeserializationError error = deserializeJson(json, client);
         
