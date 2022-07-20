@@ -1,5 +1,5 @@
 /*
- ARDUINO UNO ETHERNET SENDER {ethernet shield 2 + rs485}
+ ARDUINO UNO ETHERNET SENDER {ethernet shield w5500 + rs485}
  Name:		ArduinoUnoEthernetSender.ino
  Created:	23.06.2022 10:00:00
  Author:	Dobychyn Danil
@@ -18,19 +18,24 @@
 #define DEBUG true
 
 #if DEBUG
+
 char debug_buffer[256];
 #define debugr(v) Serial.print(v)
 #define debug(v) Serial.println(v)
 #define debugf(s, values...) { sprintf(debug_buffer, s, ##values); Serial.println(debug_buffer); }
-#define debugt
+
 #else
+
+#define debugr(v)
+#define debug(v)
+#define debugf(s, values...)
 
 #endif
 
 #pragma region GLOBAL_SETTINGS
 
 void(* resetFunc) (void) = 0;                   // reset Arduino Uno function
-const char*     program_version = "0.9.7";      // program version
+const char*     program_version = "0.9.8";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
 unsigned short  broadcast_id    = 999;          // id for receiving broadcast messages
@@ -63,7 +68,7 @@ unsigned short  reconnect_delay = 500;          // delay for try to reconnect et
 unsigned short  server_port             = 80;   // server port
 char*           server_name =                 
                 "skdmk.fd.mk.ua";               // server address
-String          server_request = 
+char*           server_request = 
                 "GET /skd.mk/baseadd2.php?";     // GET request address
 
 // smart receive
@@ -129,6 +134,11 @@ void setup()
         serial_baud);
 
     ethernetConnect();
+
+    //test
+    message.set(801, 123123);
+    sendServer();
+    receiveServer();
 }
 
 void loop()
@@ -236,11 +246,11 @@ void sendServer()
     client.println();
     client.println();
 
-    debug("request send: \n" + 
-        server_request + "id=" + String(message.card_id) + 
-        "&kod=" + String(message.device_id) + " HTTP/1.1" +
-        "\nHost: " + server_name + 
-        "\nConnection: close");
+    debugf("send request:\n%sid=%lu&kod=%u HTTP/1.1\nHost: %s\nConncection: close", 
+        server_request, 
+        message.card_id,
+        message.device_id,
+        server_name);
     
     // rare error check
     if (!client.find("\r\n\r\n"))
@@ -278,7 +288,7 @@ void receiveServer()
         // deserialization error
         if (error)
         {
-            debug("deserialization error: " + String(error.c_str()));
+            debugf("deserialization error: %s", error.c_str());
             
             sendData(
                 message.device_id, 
@@ -294,10 +304,13 @@ void receiveServer()
             unsigned long  json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
             unsigned short json_state_id  = json["status"].as<int>();
 
+            debugf("deserialized json: { 'kod'= %u; 'id'=&lu, 'status'=&u }",
+                json_device_id,
+                json_card_id,
+                json_state_id);
+
             // no response from server
-            if (json_device_id == 0 &&
-                json_card_id == 0 &&
-                json_state_id == 0)
+            if (json_device_id == 0 && json_card_id == 0 && json_state_id == 0)
             {
                 debug("error: no response from server");
 
