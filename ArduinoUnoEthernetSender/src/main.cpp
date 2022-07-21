@@ -15,7 +15,7 @@
 #include <SoftwareSerial.h>
 #include <SPI.h>
 
-#define DEBUG true
+#define DEBUG false
 
 #if DEBUG
 
@@ -134,9 +134,13 @@ void setup()
     ethernetConnect();
 
     //test
-    // message.set(801, 123123);
-    // sendServer();
-    // receiveServer();
+    message.set(801, 123123);
+    sendServer();
+    receiveServer();
+    Serial.println("message");
+    Serial.println(message.device_id);
+    Serial.println(message.card_id);
+    Serial.println(message.state_id);
 }
 
 void loop()
@@ -209,13 +213,6 @@ void ethernetConnect()
         Ethernet.localIP()[3]);
 
     sendBroadcast(er_no_ethr_cnctn, 1);
-
-    // test 
-    // delay(1000);
-    // debug("!!!TEST!!! sending message to server");
-    // message.set(801, 123321123);
-    // sendServer();
-    // receiveServer();
 }
 
 void sendServer()
