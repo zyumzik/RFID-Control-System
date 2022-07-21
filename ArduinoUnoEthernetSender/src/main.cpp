@@ -34,7 +34,7 @@ char debug_buffer[256];
 
 #pragma region GLOBAL_SETTINGS
 
-void(* resetFunc) (void) = 0;                   // reset Arduino Uno function
+void(* resetBoard) (void) = 0;                   // reset Arduino Uno function
 const char*     program_version = "0.9.8";      // program version
 unsigned long   serial_baud     = 115200;       // serial baud speed
 
@@ -59,7 +59,7 @@ EthernetClient  client;                         // object for connecting etherne
 byte            mac[] = { 0x54, 0x34, 
                           0x41, 0x30, 
                           0x30, 0x35 };         // mac address of this device. must be unique in local network
-unsigned short  reconnect_delay = 500;          // delay for try to reconnect ethernet
+unsigned short  reconnect_delay = 1000;         // delay for try to reconnect ethernet
 
 #pragma endregion //V_ETHERNET
 
@@ -69,11 +69,9 @@ unsigned short  server_port             = 80;   // server port
 char*           server_name =                 
                 "skdmk.fd.mk.ua";               // server address
 char*           server_request = 
-                "GET /skd.mk/baseadd2.php?";     // GET request address
+                "GET /skd.mk/baseadd2.php?";    // GET request address
 
-// smart receive
-unsigned long   server_receive_max_wait    = 500;  // time for waiting response from server
-unsigned short  server_receive_counter  = 0;    // counter for receive waiting
+unsigned long   server_receive_delay    = 500;  // delay for waiting response from server
 
 #pragma endregion //V_SERVER
 
@@ -129,23 +127,26 @@ void setup()
     SPI.begin();
     easy_transfer.begin(details(message), &rs485);
 
-    debugf("\n\n\nArduino Uno Ethernet Sender v.%s \ndebug serial speed: %lu", 
+    debugf("\n\n\n\t--Arduino Uno Ethernet Sender v.%s--\n \tdebug serial speed: %lu\n\t..........", 
         program_version, 
         serial_baud);
 
     ethernetConnect();
 
     //test
-    message.set(801, 123123);
-    sendServer();
-    receiveServer();
+    // message.set(801, 123123);
+    // sendServer();
+    // receiveServer();
 }
 
 void loop()
 {
     if (!ethernetConnected())
     {
+        debug("ethernet connection lost");
+        sendBroadcast(er_no_ethr_cnctn, 0);
         ethernetConnect();
+        return;
     }
 
     if (easy_transfer.receiveData())
@@ -157,7 +158,7 @@ void loop()
             message.other_id);
 
         sendServer();
-
+        delay(server_receive_delay);
         receiveServer();
     }
 }
@@ -165,72 +166,71 @@ void loop()
 #pragma region F_DESCRIPTION
 
 bool ethernetConnected()
-{
+{       
     if (Ethernet.link() == 1 && 
         Ethernet.speed() != 0)
+    {
         return true;
+    }
     else
+    {
         return false;
+    }
 }
 
 void ethernetConnect()
 {
+    delay (reconnect_delay);
+
     // base ethernet connecting
-    delay(reconnect_delay);
+    debugr("connecting ethernet");
     while (!ethernetConnected())
     {
-        debug("ethernet not connected. reloading board...");
+        debugr(".");
         delay(reconnect_delay);
-        resetFunc();
     }
 
-    debugf("ethernet connected. speed: %u", Ethernet.speed());
+    debugf("\nethernet connected. speed: %u", Ethernet.speed());
 
     // connecting to network (using mac address and DHCP)
     if (Ethernet.begin(mac) == 0)
     {
+        debug("critical error: DHCP configuration failed\nreloading board...");
+
         delay(reconnect_delay);
 
-        debug("connection via DHCP is not established. reloading board...");
-
-        resetFunc();
+        resetBoard();
     }
 
-    debugf("DHCP connection established. ip (%u.%u.%u.%u)", 
+    debugf("DHCP configuration succeeded. ip (%u.%u.%u.%u)", 
         Ethernet.localIP()[0],
         Ethernet.localIP()[1],
         Ethernet.localIP()[2],
         Ethernet.localIP()[3]);
 
     sendBroadcast(er_no_ethr_cnctn, 1);
+
+    // test 
+    // delay(1000);
+    // debug("!!!TEST!!! sending message to server");
+    // message.set(801, 123321123);
+    // sendServer();
+    // receiveServer();
 }
 
 void sendServer()
 {
-    // no ethernet or server connection, trying to reconnect
+    // no server connection, trying to reconnect
     if (!client.connect(server_name, server_port))
     {
         debug("server connection not established");
-        if (!ethernetConnected())
-        {
-            debug("ethernet connection not established");
-            sendData(
-                message.device_id,
-                message.card_id,
-                er_no_ethr_cnctn,
-                0
-            );
-            ethernetConnect();
-        }
-        else
-        {
-            sendData(
-                message.device_id, 
-                message.card_id, 
-                er_no_srvr_cnctn,
-                0
-            );
-        }
+        sendData(
+            message.device_id, 
+            message.card_id, 
+            er_no_srvr_cnctn,
+            0
+        );
+        return;
     }
     
     // connection established
@@ -268,20 +268,12 @@ void sendServer()
 
 void receiveServer()
 {
-    // smart receive waiting
-    server_receive_counter = 0;
-    while (server_receive_counter <= server_receive_max_wait)
-    {
-        if (client.available())
-            break;
-
-        delay(1);
-        server_receive_counter++;
-    }
+    debugf("temp: receiveServer(). available: %d", client.available());
 
     // available data in cleint for read
     if (client.available())
     {
+        debug("temp: client available");
         StaticJsonDocument<256> json;
         DeserializationError error = deserializeJson(json, client);
         
@@ -300,14 +292,18 @@ void receiveServer()
         // successfully received response from server
         else
         {
-            unsigned short json_device_id = strtoul(json["kod"].as<const char*>(), NULL, 0);
-            unsigned long  json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
-            unsigned short json_state_id  = json["status"].as<int>();
+            // unsigned short json_device_id = strtoul(json["kod"].as<const char*>(), NULL, 0);
+            // unsigned long  json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
+            // unsigned short json_state_id  = json["status"].as<int>();
 
-            debugf("deserialized json: { 'kod'= %u; 'id'=&lu, 'status'=&u }",
-                json_device_id,
-                json_card_id,
-                json_state_id);
+            unsigned short json_device_id = json["kod"].as<unsigned short>();
+            unsigned long  json_card_id   = json["id"].as<unsigned long>();
+            unsigned short json_state_id  = json["status"].as<unsigned short>();
+
+            // debugf("deserialized json: { 'kod'= %u; 'id'=&lu, 'status'=&u }",
+            //     json_device_id,
+            //     json_card_id,
+            //     json_state_id);
 
             // no response from server
             if (json_device_id == 0 && json_card_id == 0 && json_state_id == 0)
@@ -324,6 +320,7 @@ void receiveServer()
             // correct response
             else
             {
+                debug("json deserialized successfully");
                 sendData(
                     json_device_id,
                     json_card_id,
