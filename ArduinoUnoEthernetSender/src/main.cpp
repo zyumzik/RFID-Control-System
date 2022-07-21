@@ -1,5 +1,5 @@
 /*
- ARDUINO UNO ETHERNET SENDER {ethernet shield w5500 + rs485}
+ ARDUINO UNO ETHERNET SENDER {ethernet shield 2 + rs485}
  Name:		ArduinoUnoEthernetSender.ino
  Created:	23.06.2022 10:00:00
  Author:	Dobychyn Danil
@@ -8,8 +8,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.hpp>
 #include <ArduinoJson.h>
-#include <EthernetClient.h>
-#include <Ethernet3.h>
+//#include <EthernetClient.h>
+#include <Ethernet.h>
 #include <EasyTransfer.h>
 #include <Message.h>
 #include <SoftwareSerial.h>
@@ -19,7 +19,7 @@
 
 #if DEBUG
 
-char debug_buffer[256];
+char debug_buffer[128];
 #define debugr(v) Serial.print(v)
 #define debug(v) Serial.println(v)
 #define debugf(s, values...) { sprintf(debug_buffer, s, ##values); Serial.println(debug_buffer); }
@@ -34,48 +34,51 @@ char debug_buffer[256];
 
 #pragma region GLOBAL_SETTINGS
 
-void(* resetBoard) (void) = 0;                   // reset Arduino Uno function
-const char*     program_version = "0.9.8";      // program version
-unsigned long   serial_baud     = 115200;       // serial baud speed
+void(* resetBoard) (void) = 0;                  // reset Arduino Uno function
+const char*     program_version = "0.8.3";
+unsigned long   serial_baud     = 115200;       // debug serial baud speed
 
-unsigned short  broadcast_id    = 999;          // id for receiving broadcast messages
-EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
-Message         message;                        // exchangeable object for EasyTransfer
+unsigned short  broadcast_id    = 999;          // id for receiving broadcast messages (for all devices)
+EasyTransfer    easy_transfer;                  // RS485 message exchanger
+Message         message;                        // exchangeable object
 
 #pragma endregion //GLOBAL_SETTINGS
 
 #pragma region V_RS485
 
-uint8_t         rs_rx_pin = 2;                  // RS485 receive pin
-uint8_t         rs_tx_pin = 3;                  // RS485 transmit pin
-unsigned long   rs_baud   = 9600;               // RS485 baud rate (speed)
-SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // object for receiving and transmitting data via RS485
+uint8_t         rs_rx_pin   = 2;                // receive pin
+uint8_t         rs_tx_pin   = 3;                // transmit pin
+uint8_t         rs_pwr_pin  = 9;                // power (5v) pin
+unsigned long   rs_baud     = 9600;             // baud speed
+SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // custom rx\tx serial
 
 #pragma endregion //V_RS485
 
 #pragma region V_ETHERNET
 
-EthernetClient  client;                         // object for connecting ethernet as client
+EthernetClient  client;                         // object for connecting server as client
 byte            mac[] = { 0x54, 0x34, 
                           0x41, 0x30, 
-                          0x30, 0x35 };         // mac address of this device. must be unique in local network
+                          0x30, 0x35 };
 unsigned short  reconnect_delay = 1000;         // delay for try to reconnect ethernet
 
 #pragma endregion //V_ETHERNET
 
 #pragma region V_SERVER
 
-unsigned short  server_port             = 80;   // server port
-char*           server_name =                 
-                "skdmk.fd.mk.ua";               // server address
-char*           server_request = 
+unsigned short  server_port             = 80;   // default HTTP server port
+const char*     server_name =                 
+                "skdmk.fd.mk.ua";               // server address (host name)
+const char*     server_request = 
                 "GET /skd.mk/baseadd2.php?";    // GET request address
 
-unsigned long   server_receive_delay    = 500;  // delay for waiting response from server
+// smart receive
+unsigned short  server_receive_max_wait = 500;  // time for waiting response from server
+unsigned short  server_receive_counter  = 0;    // counter for receive waiting
 
 #pragma endregion //V_SERVER
 
-#pragma region V_SERVER_STATES
+#pragma region SERVER_STATES
                                                 
 // responses:
 const uint8_t   st_unknown          = 0;        // unknown state
@@ -93,7 +96,7 @@ const uint8_t   er_json             = 98;       // json deserialization error   
 const uint8_t   er_timeout          = 99;       // server connection timeout        | !client.available()
 const uint8_t   er_no_ethr_cnctn    = 100;      // no ethernet connection           | !ethernetConnected()
 
-#pragma endregion //V_SERVER_STATES
+#pragma endregion //SERVER_STATES
 
 #pragma region F_DECLARATION
 
@@ -109,7 +112,7 @@ void sendServer();
 // receive response from server
 void receiveServer();
 
-// send message to slave (Arduino Nano)
+// send message to slave
 void sendData(unsigned short device_id, unsigned long card_id, unsigned short state_id, unsigned short other_id);
 
 // send broadcast message (for all of devices connected by RS485)
@@ -119,60 +122,56 @@ void sendBroadcast(unsigned short state_id, unsigned short other_id);
 
 void setup()
 {
-    #if DEBUG
-    Serial.begin(serial_baud);
-    #endif
-
+    pinMode(rs_pwr_pin, OUTPUT);
+    digitalWrite(rs_pwr_pin, HIGH);
     rs485.begin(rs_baud);
-    SPI.begin();
     easy_transfer.begin(details(message), &rs485);
 
-    debugf("\n\n\n\t--Arduino Uno Ethernet Sender v.%s--\n \tdebug serial speed: %lu\n\t..........", 
-        program_version, 
-        serial_baud);
+    #if DEBUG
+    Serial.begin(serial_baud);
+    while (!Serial);
+    #endif //DEBUG
+    debugf("\n\n\n\tArduino Uno Ethernet Sender %s.\n\tdebug serial speed: %lu\n", program_version, serial_baud);
 
+    SPI.begin();
     ethernetConnect();
 
-    //test
-    message.set(801, 123123);
-    sendServer();
-    receiveServer();
-    Serial.println("message");
-    Serial.println(message.device_id);
-    Serial.println(message.card_id);
-    Serial.println(message.state_id);
+    // //test
+    // //debug("test receive");
+    // message.set(801, 123456789, 0 , 0);
+    // sendServer();
+    // receiveServer();
+
+    // delay(5000);
+    // //debug("test receive");
+    // message.set(801, 123456789, 0 , 0);
+    // sendServer();
+    // receiveServer();
 }
 
 void loop()
 {
     if (!ethernetConnected())
     {
-        debug("ethernet connection lost");
-        sendBroadcast(er_no_ethr_cnctn, 0);
         ethernetConnect();
-        return;
     }
 
     if (easy_transfer.receiveData())
     {
-        debugf("RECEIVED:\t[ %u, %lu, %u, %u ]", 
-            message.device_id, 
-            message.card_id, 
-            message.state_id, 
-            message.other_id);
+        debugf("|ET-receive|\t[ %u; %lu; %u; %u ]", 
+            message.device_id, message.card_id, message.state_id, message.other_id);
 
         sendServer();
-        delay(server_receive_delay);
         receiveServer();
     }
 }
 
-#pragma region F_DESCRIPTION
+#pragma region FUNCTION_DESCRIPTION
 
 bool ethernetConnected()
-{       
-    if (Ethernet.link() == 1 && 
-        Ethernet.speed() != 0)
+{
+    if (Ethernet.linkStatus() == LinkON && 
+        Ethernet.hardwareStatus() != EthernetNoHardware)
     {
         return true;
     }
@@ -184,40 +183,37 @@ bool ethernetConnected()
 
 void ethernetConnect()
 {
-    delay (reconnect_delay);
+    sendBroadcast(er_no_ethr_cnctn, 0);
 
-    // base ethernet connecting
+    debugf("ethernet info: link status = %u; hardware status = %u", 
+        Ethernet.linkStatus(), Ethernet.hardwareStatus());
     debugr("connecting ethernet");
-    while (!ethernetConnected())
+    while(!ethernetConnected())
     {
-        debugr(".");
         delay(reconnect_delay);
+        debugr(".");
     }
-
-    debugf("\nethernet connected. speed: %u", Ethernet.speed());
+    debug("\nconnected");
 
     // connecting to network (using mac address and DHCP)
     if (Ethernet.begin(mac) == 0)
     {
-        debug("critical error: DHCP configuration failed\nreloading board...");
+        debug("critical error: DHCP configuration failed. reloading board");
 
         delay(reconnect_delay);
 
         resetBoard();
     }
 
-    debugf("DHCP configuration succeeded. ip (%u.%u.%u.%u)", 
-        Ethernet.localIP()[0],
-        Ethernet.localIP()[1],
-        Ethernet.localIP()[2],
-        Ethernet.localIP()[3]);
+    debugf("DHCP configuration succeeded. ip: %u.%u.%u.%u", 
+        Ethernet.localIP()[0], Ethernet.localIP()[1], Ethernet.localIP()[2], Ethernet.localIP()[3]);
 
     sendBroadcast(er_no_ethr_cnctn, 1);
 }
 
 void sendServer()
 {
-    // no server connection, trying to reconnect
+    // no ethernet or server connection, trying to reconnect
     if (!client.connect(server_name, server_port))
     {
         debug("server connection not established");
@@ -243,12 +239,9 @@ void sendServer()
     client.println();
     client.println();
 
-    debugf("send request:\n%sid=%lu&kod=%u HTTP/1.1\nHost: %s\nConncection: close", 
-        server_request, 
-        message.card_id,
-        message.device_id,
-        server_name);
-    
+    debugf("web request send:\n%sid=%lu&kod=%u HTTP/1.1\nHost: %s\nConnection: close\n_\n_", 
+        server_request, message.card_id, message.device_id, server_name);
+
     // rare error check
     if (!client.find("\r\n\r\n"))
     {
@@ -265,15 +258,23 @@ void sendServer()
 
 void receiveServer()
 {
-    debugf("temp: receiveServer(). available: %d", client.available());
+    // smart receive waiting
+    server_receive_counter = 0;
+    while (server_receive_counter <= server_receive_max_wait)
+    {
+        if (client.available())
+            break;
+
+        delay(1);
+        server_receive_counter++;
+    }
 
     // available data in cleint for read
     if (client.available())
     {
-        debug("temp: client available");
         StaticJsonDocument<256> json;
         DeserializationError error = deserializeJson(json, client);
-        
+
         // deserialization error
         if (error)
         {
@@ -289,24 +290,17 @@ void receiveServer()
         // successfully received response from server
         else
         {
-            // unsigned short json_device_id = strtoul(json["kod"].as<const char*>(), NULL, 0);
-            // unsigned long  json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
-            // unsigned short json_state_id  = json["status"].as<int>();
+            unsigned short  json_device_id = strtoul(json["kod"].as<const char*>(), NULL, 0);
+            unsigned long   json_card_id   = strtoul(json["id"].as<const char*>(), NULL, 0);
+            unsigned short  json_state_id  = json["status"].as<unsigned short>();
 
-            unsigned short json_device_id = json["kod"].as<unsigned short>();
-            unsigned long  json_card_id   = json["id"].as<unsigned long>();
-            unsigned short json_state_id  = json["status"].as<unsigned short>();
-
-            // debugf("deserialized json: { 'kod'= %u; 'id'=&lu, 'status'=&u }",
-            //     json_device_id,
-            //     json_card_id,
-            //     json_state_id);
+            debugf("json received: \t{ 'kod='%u; 'id'%lu, 'status'%u }", 
+                json_device_id, json_card_id, json_state_id);
 
             // no response from server
             if (json_device_id == 0 && json_card_id == 0 && json_state_id == 0)
             {
                 debug("error: no response from server");
-
                 sendData(
                     message.device_id,
                     message.card_id,
@@ -317,7 +311,6 @@ void receiveServer()
             // correct response
             else
             {
-                debug("json deserialized successfully");
                 sendData(
                     json_device_id,
                     json_card_id,
@@ -346,11 +339,8 @@ void sendData(unsigned short device_id, unsigned long card_id, unsigned short st
 {
     message.set(device_id, card_id, state_id, other_id);
 
-    debugf("SEND:\t\t[ %u, %lu, %u, %u ]", 
-        message.device_id, 
-        message.card_id, 
-        message.state_id, 
-        message.other_id);
+    debugf("|ET-send|\t[ %u; %lu; %u; %u ]", 
+        message.device_id, message.card_id, message.state_id, message.other_id);
 
     easy_transfer.sendData();
 
@@ -361,15 +351,12 @@ void sendBroadcast(unsigned short state_id, unsigned short other_id)
 {
     message.set(broadcast_id, 0, state_id, other_id);
 
-    debugf("Broad-SEND:\t[ %u, %lu, %u, %u ]", 
-        message.device_id, 
-        message.card_id, 
-        message.state_id, 
-        message.other_id);
+    debugf("|ET-send|\t[ %u; %lu; %u; %u ]", 
+        message.device_id, message.card_id, message.state_id, message.other_id);
 
     easy_transfer.sendData();
 
     message.clean();
 }
 
-#pragma endregion //F_DESCRIPTION
+#pragma endregion //FUNCTION_DESCRIPTION
