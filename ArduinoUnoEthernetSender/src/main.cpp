@@ -118,20 +118,6 @@ void sendBroadcast(unsigned short state_id, unsigned short other_id);
 
 #pragma endregion //F_DECLARATION
 
-// int main()
-// {
-//     // setup
-//
-//
-//     //loop
-//     while(true)
-//     {
-//
-//     }
-//
-//     return 0;
-// }
-
 void setup()
 {
     pinMode(rs_pwr_pin, OUTPUT);
@@ -143,11 +129,9 @@ void setup()
     #if DEBUG
     Serial.begin(serial_baud);
     while (!Serial);
-
     debug_s("\n\n\n\t---Arduino Uno Ethernet Sender v.");
     debug(program_version);
     debugln_s("\t---");
-
     debug_s("\t---debug serial speed: ");
     debug(serial_baud);
     debugln_s("\t\t---");
