@@ -6,6 +6,7 @@
 */
 
 #include <Arduino.h>
+#include <ArduinoUniqueID.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -47,7 +48,7 @@ char debug_buffer[64];
 #define         broadcast_id    999             // id for receiving broadcast messages
 #define         handle_delay    0               // handle received response delay (for skipping default wiegand blink and beep)
 
-unsigned long   device_id       = 801;          // unique ID of reader device
+unsigned long   device_id       = 803;          // unique ID of reader device
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
@@ -185,6 +186,20 @@ void setup()
         0
     );
     w_timer.begin(w_delay);
+
+    // unique id
+    UniqueID8dump(Serial);
+	Serial.print("UniqueID: ");
+	for (size_t i = 0; i < 8; i++)
+	{
+		if (UniqueID8[i] < 0x10)
+			Serial.print("0");
+		Serial.print(UniqueID8[i], HEX);
+		Serial.print(" ");
+	}
+	Serial.println();
+
+
 }
 
 void loop()
@@ -333,9 +348,6 @@ unsigned long wiegandToDecimal(unsigned long code)
 
 void handleResponse()
 {
-    rs_flag = true;
-    rs_wait_timer.stop();
-
     debugln_f("\nET << \t[ %u; %lu; %u; %u ]", 
             message.device_id, message.card_id, message.state_id, message.other_id);
 
@@ -346,6 +358,9 @@ void handleResponse()
         return;
     }
         
+    rs_flag = true;
+    rs_wait_timer.stop();
+
     delay(handle_delay);
 
     // if error - long signal firstly
