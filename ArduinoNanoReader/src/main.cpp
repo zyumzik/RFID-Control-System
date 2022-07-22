@@ -6,7 +6,6 @@
 */
 
 #include <Arduino.h>
-//#include <Debug.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -15,93 +14,124 @@
 #include <Wiegand.h>
 #include <WiegandSignal.h>
 
+#define DEBUG true
+
+#if DEBUG
+
+char debug_buffer[64];
+#define debug(v)        Serial.print(v)
+#define debugln(v)      Serial.println(v)
+#define debug_s(s)      Serial.print(F(s))
+#define debugln_s(s)    Serial.println(F(s))
+#define debugln_f(s, values...) { sprintf(debug_buffer, s, ##values); Serial.println(debug_buffer); }
+
+#else
+
+#define debug(v)
+#define debugln(v)
+#define debug_s(s)
+#define debugln_s(s)
+#define debugln_f(s, values...)
+
+#endif
+
+#define SET_DEV_ID  false
+#define NEW_DEV_ID  999
+#define WICKET      true
+#define REED_SWITCH true
+
 #pragma region GLOBAL_SETTINGS
 
-#define DEBUG                                   // comment this line to not write anything to Serial as debug
-#define WICKET                                  // comment this line if there is no connected wicket (tourniquet)
-const String    program_version = "0.9.55";      // program version
-unsigned long   serial_baud     = 115200;       // serial baud speed
+#define         program_version "0.8.4"
+#define         serial_baud     115200          // debug serial baud speed
+#define         broadcast_id    999             // id for receiving broadcast messages
+#define         handle_delay    0               // handle received response delay (for skipping default wiegand blink and beep)
 
-unsigned long   broadcast_id    = 999;          // id for receiving broadcast messages
-unsigned long   device_id       = 0;            // unique ID of reader device
-unsigned long   handle_delay    = 0;            // handle received response delay (for skipping default wiegand blink and beep)
+unsigned long   device_id       = 801;          // unique ID of reader device
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
 
 #pragma endregion //GLOBAL_SETTINGS
 
-#pragma region RS485_SETTINGS
+#pragma region V_RS485
 
-uint8_t         rs_rx_pin = 4;                  // RS485 receive pin
-uint8_t         rs_tx_pin = 5;                  // RS485 transmit pin
-long            rs_baud   = 9600;               // RS485 baud rate (speed)
+#define         rs_rx_pin   4                   // receive pin
+#define         rs_tx_pin   5                   // transmit pin
+#define         rs_baud     9600                // baud rate (speed)
+#define         rs_rspns    1500                // max waiting response time
+
 SoftwareSerial  rs485(rs_rx_pin, rs_tx_pin);    // object for receiving and transmitting data via RS485
-bool            rs_connected = true;            // true if response from master is being receiving
+bool            rs_flag = true;                 // true if response from master is being receiving
 Timer           rs_wait_timer;                  // timer for waiting respinse from master
-unsigned long   rs_last_send = 0;               // last send time to master
-unsigned long   rs_response_wait = 1500;        // time for waiting response from master
 
-#pragma endregion //RS485_SETTINGS
+#pragma endregion //V_RS485
 
-#pragma region WIEGAND_SETTINGS
+#pragma region V_WIEGAND
+
+#define         w_rx_pin    2                   // receive pin
+#define         w_tx_pin    3                   // transmit pin
+#define         w_zum_pin   6                   // built-in zummer pin
+#define         w_led_pin   7                   // built-in led pin
+#define         w_delay     1000                // read card delay
 
 WIEGAND         wiegand;                        // object for reading data from Wiegnad RFID
-uint8_t         w_rx_pin  = 2;                  // wiegand receive pin
-uint8_t         w_tx_pin  = 3;                  // wiegand transmit pin
-uint8_t         w_zum_pin = 8;                  // wiegand built-in zummer control pin
-uint8_t         w_led_pin = 7;                  // wiegand built-in led control pin
 unsigned long   w_last_card;                    // last read card id
-WiegandSignal   w_signal(w_led_pin, w_zum_pin); // object for better led and zummer signaling
-Timer           w_timer;                        // timer for reading card delay
-unsigned long   w_read_delay = 1000;            // delay for reading card
+WiegandSignal   w_signal(w_led_pin, w_zum_pin); // object for signaling with led and zummer
+Timer           w_timer;                        // read card timer
 
-#pragma endregion //WIEGAND_SETTINGS
+#pragma endregion //V_WIEGAND
 
-#pragma region WICKET_SETTINGS
+#pragma region V_WICKET
 
-uint8_t         wicket_pin      = 8;            // wicket relay pin
-unsigned long   wicket_time     = 150;          // opened wicket time
+#define         wicket_pin      8               // wicket relay pin
+#define         wicket_time     150             // opened wicket time
 Timer           wicket_timer;                   // timer for wicket open control
 
-#pragma endregion //WICKET_SETTINGS
+#pragma endregion //V_WICKET
+
+#pragma region V_REED_SWITCH
+
+#define         reed_pin        12              // generates high voltage if door opened
+#define         reed_time       10000           // do alert time with opened door
+Timer           reed_timer;                     // opened door timer
+bool            reed_flag = true;               // 
+
+#pragma endregion //V_REED SWITCH
 
 #pragma region SERVER_STATES
                                                 
 // responses:
-const uint8_t   st_unknown          = 0;        // unknown state
-const uint8_t   st_allow            = 1;        // access allowed
-const uint8_t   st_re_entry         = 2;        // re-entry
-const uint8_t   st_denied           = 3;        // access denied
-const uint8_t   st_invalid          = 4;        // invalid card (database does not contain such card)
-const uint8_t   st_blocked          = 5;        // card is blocked
-
-const uint8_t   st_reg_device       = 50;       // registration of device (check for similar device id in readers)
-const uint8_t   st_set_device_id    = 51;       // setting device id
+#define st_unknown          0                   // unknown state
+#define st_allow            1                   // access allowed
+#define st_re_entry         2                   // re-entry
+#define st_denied           3                   // access denied
+#define st_invalid          4                   // invalid card (database does not contain such card)
+#define st_blocked          5                   // card is blocked
 
 // errors:
-const uint8_t   er_no_srvr_cnctn    = 95;       // no server connection             | !client.connect(server, port)
-const uint8_t   er_request          = 96;       // wrong server request             | !client.find("\r\n\r\n")
-const uint8_t   er_no_response      = 97;       // no response from server          | json {"id":0,"kod":0,"status":0}
-const uint8_t   er_json             = 98;       // json deserialization error       | if (DeserializationError)
-const uint8_t   er_timeout          = 99;       // server connection timeout        | !client.available()
-const uint8_t   er_no_ethr_cnctn    = 100;      // no ethernet connection           | !ethernetConnected()
+#define er_no_srvr_cnctn    95                  // no server connection             | !client.connect(server, port)
+#define er_request          96                  // wrong server request             | !client.find("\r\n\r\n")
+#define er_no_response      97                  // no response from server          | json {"id":0,"kod":0,"status":0}
+#define er_json             98                  // json deserialization error       | if (DeserializationError)
+#define er_timeout          99                  // server connection timeout        | !client.available()
+#define er_no_ethr_cnctn    100                 // no ethernet connection           | !ethernetConnected()
 
 #pragma endregion //SERVER_STATES
 
-#pragma region FUNCTION_DECLARATION
+#pragma region F_DECLARATION
 
 // clear EEPROM
 void clearMemory();
 
 // save device id to EEPROM
-void saveDeviceId(uint8_t address, unsigned long id);
+void saveDeviceId(int address, unsigned long id);
 
 // load device id from EEPROM
-unsigned long loadDeviceId(uint8_t address);
+unsigned long loadDeviceId(int address);
 
 // send message to master (Arduino Uno)
-void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id);
+void sendData(unsigned short device_id, unsigned long card_id, unsigned short state_id, unsigned short other_id);
 
 // reverses code by bit
 unsigned long wiegandToDecimal(unsigned long code);
@@ -109,56 +139,85 @@ unsigned long wiegandToDecimal(unsigned long code);
 // handle response from server
 void handleResponse();
 
-#pragma endregion //FUNCTION_DECLARATION
+#pragma endregion //F_DECLARATION
 
 void setup()
 {
-    Debug::begin(serial_baud, true);
+    #if SET_DEV_ID
+    clearMemory();
+    saveDeviceId(0, NEW_DEV_ID);
+    #endif //SET_DEV_ID    
 
-    // uncomment lines below to save some unique id to EEPROM
-    // clearMemory();
-    // saveDeviceId(0, -unique id-);    
+    #if WICKET
+    pinMode(wicket_pin, OUTPUT);
+    #endif //WICKET
 
-    device_id = loadDeviceId(0);
+    #if REED_SWITCH
+    pinMode(reed_pin, INPUT_PULLUP);
+    #endif //REED_SWITCH
+
+    //device_id = loadDeviceId(0);  // defined in global settings
 
     wiegand.begin(w_rx_pin, w_tx_pin);
-    w_timer.begin(w_read_delay);
     pinMode(w_zum_pin, OUTPUT);
     pinMode(w_led_pin, OUTPUT);
+
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
     
-    Debug::log(
-        String("Arduino Nano AT328 RFID-WG Reader. V." + program_version) +
-        String("\nstart working on ") + serial_baud + " baud speed" + 
-        String("\ndevice id: ") + device_id);
+
+    #if DEBUG
+    Serial.begin(serial_baud);
+    while (!Serial);
+    debug_s("\n\n\n\t---Arduino Nano RFID Reader v.");
+    debug(program_version);
+    debugln_s("\t---");
+    debug_s("\t---debug serial speed: ");
+    debug(serial_baud);
+    debugln_s("\t\t---");
+    #endif //DEBUG
 
     // registering new connected device
-    delay(w_read_delay);
     sendData(
         device_id,
         0,
-        st_reg_device,
+        0,
         0
     );
+    w_timer.begin(w_delay);
 }
 
 void loop()
 {
     // wicket close
-    #ifdef WICKET
+    #if WICKET
     if (wicket_timer.update())
     {
         digitalWrite(wicket_pin, HIGH);
         wicket_timer.stop();
-        Debug::log("wicket closed");
+        debugln_s("wicket closed");
     }
     #endif //WICKET
+
+    #if REED_SWITCH
+    if (reed_timer.update())
+    {
+        reed_flag = false;
+        reed_timer.stop();
+    }
+    if (!reed_flag)
+    {
+        if (digitalRead(reed_pin) == LOW)
+        {
+            reed_flag = true;
+        }
+    }
+    #endif //REED_SWITCH
 
     // too much time passed since last send (no response from master)
     if (rs_wait_timer.update())
     {
-        rs_connected = false;
+        rs_flag = false;
     }
 
     // received message from master
@@ -168,7 +227,11 @@ void loop()
     }
 
     // making signal if something is wrong
-    if (!rs_connected)
+    if (!reed_flag)
+    {
+        w_signal.update(WiegandSignal::Length::s_short_short, false, true);
+    }
+    else if (!rs_flag)
     {
         w_signal.update(WiegandSignal::Length::s_short, false, true);
     }
@@ -191,7 +254,8 @@ void loop()
             // check for ethernet connection, signaling state
             if (ethernet_flag && !w_signal.is_invoke)
             {
-                Debug::log("read card: " + String(w_last_card));
+                debug_s("read card: ");
+                debugln(w_last_card);
                 sendData(
                     device_id, 
                     w_last_card, 
@@ -203,7 +267,7 @@ void loop()
     }
 }
 
-#pragma region FUNCTION_DESCRIPTION
+#pragma region F_DESCRIPTION
 
 void clearMemory()
 {
@@ -211,10 +275,10 @@ void clearMemory()
     {
         EEPROM.write(i, 0);
     }
-    Debug::log("EEPROM cleared");
+    debugln_s("EEPROM cleared");
 }
 
-void saveDeviceId(uint8_t address, unsigned long id)
+void saveDeviceId(int address, unsigned long id)
 {
     byte buf[4];
     (unsigned long&)buf = id;
@@ -222,9 +286,11 @@ void saveDeviceId(uint8_t address, unsigned long id)
     {
         EEPROM.write(address + i, buf[i]);
     }
+    debug_s("new device id written: ");
+    debugln(id);
 }
 
-unsigned long loadDeviceId(uint8_t address)
+unsigned long loadDeviceId(int address)
 {
     byte buf[4];
     for(byte i = 0; i < 4; i++)
@@ -235,15 +301,14 @@ unsigned long loadDeviceId(uint8_t address)
     return id;
 }
 
-void sendData(uint_fast16_t device_id, uint32_t card_id, uint8_t state_id, uint8_t other_id)
+void sendData(unsigned short device_id, unsigned long card_id, unsigned short state_id, unsigned short other_id)
 {
-    rs_last_send = millis();
-    rs_wait_timer.begin(rs_response_wait);
+    rs_wait_timer.begin(rs_rspns);
 
     message.set(device_id, card_id, state_id, other_id);
 
-    Debug::log("---SEND---");
-    message.print();
+    debugln_f("\nET >> \t[ %u; %lu; %u; %u ]", 
+        message.device_id, message.card_id, message.state_id, message.other_id);
 
     easy_transfer.sendData();
 
@@ -268,17 +333,16 @@ unsigned long wiegandToDecimal(unsigned long code)
 
 void handleResponse()
 {
-    rs_connected = true;
+    rs_flag = true;
     rs_wait_timer.stop();
 
-    Debug::log("-RECEIVED-");
-    message.print();
+    debugln_f("\nET << \t[ %u; %lu; %u; %u ]", 
+            message.device_id, message.card_id, message.state_id, message.other_id);
 
     // base data checking (if message was for this device)
-    if (message.device_id != broadcast_id &&
-        message.device_id != device_id)
+    if (message.device_id != broadcast_id && message.device_id != device_id)
     {
-        Debug::log("message not handled");
+        debugln("message not handled");
         return;
     }
         
@@ -295,50 +359,49 @@ void handleResponse()
     case st_unknown:
     {
         w_signal.invoke(WiegandSignal::Length::s_long, 3);
-        Debug::log("unknown status");
+        debugln_s("unknown status");
         break;
     }
     case st_allow:
     {
+        debugln_s("access allowed");
+
         // opening a wicket
-        #ifdef WICKET
+        #if WICKET
+        debugln_s("wicket opened");
         wicket_timer.begin(wicket_time);
         digitalWrite(wicket_pin, LOW);
         #endif //WICKET
-        Debug::log("access allowed. wicket opened");
+
+        #if REED_SWITCH
+        debugln_s("reed timer started");
+        reed_timer.begin(reed_time);
+        #endif //REEDSWITCH
+
         break;
     }
     case st_re_entry:
     {
         w_signal.invoke(WiegandSignal::Length::s_long, 2);
-        Debug::log("re-entry");
+        debugln_s("re-entry");
         break;
     }
     case st_denied:
     {
         w_signal.invoke(WiegandSignal::Length::s_medium, 10);
-        Debug::log("access denied");
+        debugln_s("access denied");
         break;
     }
     case st_invalid:
     {
         w_signal.invoke(WiegandSignal::Length::s_medium, 5);
-        Debug::log("invalid card");
+        debugln_s("invalid card");
         break;
     }
     case st_blocked:
     {
         w_signal.invoke(WiegandSignal::Length::s_short, 10);
-        Debug::log("card blocked");
-        break;
-    }
-
-    // commands
-    case st_set_device_id:
-    {
-        device_id = message.card_id;
-        saveDeviceId(0, device_id);
-        Debug::log("device is set to: " + String(device_id));
+        debugln_s("card blocked");
         break;
     }
     
@@ -346,31 +409,31 @@ void handleResponse()
     case er_no_srvr_cnctn:
     {
         w_signal.invoke(WiegandSignal::Length::s_long, 3);
-        Debug::log("error: no server connection");
+        debugln_s("error: no server connection");
         break;
     }
     case er_request:
     {
         w_signal.invoke(WiegandSignal::Length::s_short, 5);
-        Debug::log("error: wrong server request");
+        debugln_s("error: wrong server request");
         break;
     }
     case er_no_response:
     {
         w_signal.invoke(WiegandSignal::Length::s_medium , 3);
-        Debug::log("error: no response from server");
+        debugln_s("error: no response from server");
         break;
     }
     case er_json:
     {
         w_signal.invoke(WiegandSignal::Length::s_short, 5);
-        Debug::log("error: wrong json deserialization");
+        debugln_s("error: wrong json deserialization");
         break;
     }
     case er_timeout:
     {
         w_signal.invoke(WiegandSignal::Length::s_medium, 3);
-        Debug::log("error: server connection timeout");
+        debugln_s("error: server connection timeout");
         break;
     }
     case er_no_ethr_cnctn:
@@ -383,14 +446,15 @@ void handleResponse()
         {
             ethernet_flag = true;
         }
-        Debug::log("ethernet connection: " + String(message.other_id));
+        debug_s("ethernet connection: ");
+        debugln(ethernet_flag);
         break;
     }
     
     // unknown state
     default:
     {
-        Debug::log("unknown state. message not handled");
+        debugln_s("unknown state. message not handled");
         break;
     }
     }
@@ -398,4 +462,4 @@ void handleResponse()
     message.clean();
 }
 
-#pragma endregion //FUNCTION_DESCRIPTION
+#pragma endregion //F_DESCRIPTION
