@@ -5,8 +5,8 @@ WiegandSignal::WiegandSignal(uint8_t led_pin, uint8_t zum_pin)
     this->led_pin = led_pin;
     this->zum_pin = zum_pin;
 
-    pinMode2(led_pin, OUTPUT);
-    pinMode2(zum_pin, OUTPUT);
+    pMode(led_pin, OUTPUT);
+    pMode(zum_pin, OUTPUT);
 }
 
 void WiegandSignal::invoke(Length length, uint8_t count)
@@ -15,8 +15,8 @@ void WiegandSignal::invoke(Length length, uint8_t count)
     current_length = length;
     invoke_counter = count * 2;
     state = false;
-    digitalWrite2(led_pin, state);
-    digitalWrite2(zum_pin, state);
+    dWrite(led_pin, state);
+    dWrite(zum_pin, state);
 }
 
 void WiegandSignal::update(Length length = s_none, bool zum = true, bool led = true)
@@ -29,9 +29,9 @@ void WiegandSignal::update(Length length = s_none, bool zum = true, bool led = t
             timer = millis();
             state = !state;
             if (led)
-                digitalWrite2(led_pin, state);
+                dWrite(led_pin, state);
             if (zum)
-                digitalWrite2(zum_pin, state);
+                dWrite(zum_pin, state);
         }
     }
 
@@ -42,8 +42,8 @@ void WiegandSignal::update(Length length = s_none, bool zum = true, bool led = t
         {
             timer = millis();
             state = !state;
-            digitalWrite2(led_pin, state);
-            digitalWrite2(zum_pin, state);
+            dWrite(led_pin, state);
+            dWrite(zum_pin, state);
             invoke_counter--;
             if (invoke_counter <= 0)
             {

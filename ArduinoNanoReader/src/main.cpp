@@ -6,7 +6,7 @@
 */
 
 #include <Arduino.h>
-#include <DIO2.h>
+#include <FDIO.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -149,20 +149,20 @@ void setup()
     clearMemory();
     saveDeviceId(0, NEW_DEV_ID);
     #endif //SET_DEV_ID    
-
+    Serial.print(dRead(10));
     #if WICKET
-    pinMode2(wicket_pin, OUTPUT);
+    pMode(wicket_pin, OUTPUT);
     #endif //WICKET
 
     #if REED_SWITCH
-    pinMode2(reed_pin, INPUT_PULLUP);
+    pMode(reed_pin, INPUT_PULLUP);
     #endif //REED_SWITCH
 
     //device_id = loadDeviceId(0);  // defined in global settings
 
     wiegand.begin(w_rx_pin, w_tx_pin);
-    pinMode2(w_zum_pin, OUTPUT);
-    pinMode2(w_led_pin, OUTPUT);
+    pMode(w_zum_pin, OUTPUT);
+    pMode(w_led_pin, OUTPUT);
 
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
@@ -191,11 +191,14 @@ void setup()
 
 void loop()
 {
+    while (true)  // makes code a bit faster
+    {
+
     // wicket close
     #if WICKET
     if (wicket_timer.update())
     {
-        digitalWrite2(wicket_pin, HIGH);
+        dWrite(wicket_pin, HIGH);
         wicket_timer.stop();
         debugln_s("wicket closed");
     }
@@ -209,7 +212,7 @@ void loop()
     }
     if (!reed_flag)
     {
-        if (digitalRead2(reed_pin) == LOW)
+        if (dRead(reed_pin) == LOW)
         {
             reed_flag = true;
         }
@@ -267,6 +270,8 @@ void loop()
             }
         }
     }
+
+    }  // while
 }
 
 #pragma region F_DESCRIPTION
@@ -372,7 +377,7 @@ void handleResponse()
         #if WICKET
         debugln_s("wicket opened");
         wicket_timer.begin(wicket_time);
-        digitalWrite2(wicket_pin, LOW);
+        dWrite(wicket_pin, LOW);
         #endif //WICKET
 
         #if REED_SWITCH

@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <DIO2.h>
+#include <FDIO.h>
 
 class WiegandSignal
 {
