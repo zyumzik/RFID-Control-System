@@ -6,7 +6,7 @@
 */
 
 #include <Arduino.h>
-#include <ArduinoUniqueID.h>
+#include <DIO2.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -36,6 +36,7 @@ char debug_buffer[64];
 
 #endif
 
+#define	GPIO2_PREFER_SPEED	1                   // prefered speed of digital i\o. 0 - smaller and slower, 1 - bigger and faster
 #define SET_DEV_ID  false
 #define NEW_DEV_ID  999
 #define WICKET      true
@@ -186,20 +187,6 @@ void setup()
         0
     );
     w_timer.begin(w_delay);
-
-    // unique id
-    UniqueID8dump(Serial);
-	Serial.print("UniqueID: ");
-	for (size_t i = 0; i < 8; i++)
-	{
-		if (UniqueID8[i] < 0x10)
-			Serial.print("0");
-		Serial.print(UniqueID8[i], HEX);
-		Serial.print(" ");
-	}
-	Serial.println();
-
-
 }
 
 void loop()
@@ -267,7 +254,7 @@ void loop()
         if (w_timer.update())
         {
             // check for ethernet connection, signaling state
-            if (ethernet_flag && !w_signal.is_invoke)
+            if (ethernet_flag && rs_flag && reed_flag && !w_signal.is_invoke)
             {
                 debug_s("read card: ");
                 debugln(w_last_card);
