@@ -37,7 +37,7 @@ char debug_buffer[64];
 
 #pragma region GLOBAL_SETTINGS
 
-#define         program_version "0.8.4"
+#define         program_version "0.8.5"
 #define         serial_baud     115200          // debug serial baud speed
 #define         broadcast_id    999             // id for receiving broadcast messages (for all devices)
 

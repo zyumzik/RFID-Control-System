@@ -6,6 +6,7 @@
 */
 
 #include <Arduino.h>
+#include <DIO2.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -35,6 +36,7 @@ char debug_buffer[64];
 
 #endif
 
+#define	GPIO2_PREFER_SPEED	1   // prefered speed of digital i\o. 0 - smaller and slower, 1 - bigger and faster
 #define SET_DEV_ID  false
 #define NEW_DEV_ID  999
 #define WICKET      true
@@ -42,7 +44,7 @@ char debug_buffer[64];
 
 #pragma region GLOBAL_SETTINGS
 
-#define         program_version "0.8.4"
+#define         program_version "0.8.5"
 #define         serial_baud     115200          // debug serial baud speed
 #define         broadcast_id    999             // id for receiving broadcast messages
 #define         handle_delay    0               // handle received response delay (for skipping default wiegand blink and beep)
@@ -149,18 +151,18 @@ void setup()
     #endif //SET_DEV_ID    
 
     #if WICKET
-    pinMode(wicket_pin, OUTPUT);
+    pinMode2(wicket_pin, OUTPUT);
     #endif //WICKET
 
     #if REED_SWITCH
-    pinMode(reed_pin, INPUT_PULLUP);
+    pinMode2(reed_pin, INPUT_PULLUP);
     #endif //REED_SWITCH
 
     //device_id = loadDeviceId(0);  // defined in global settings
 
     wiegand.begin(w_rx_pin, w_tx_pin);
-    pinMode(w_zum_pin, OUTPUT);
-    pinMode(w_led_pin, OUTPUT);
+    pinMode2(w_zum_pin, OUTPUT);
+    pinMode2(w_led_pin, OUTPUT);
 
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
@@ -193,7 +195,7 @@ void loop()
     #if WICKET
     if (wicket_timer.update())
     {
-        digitalWrite(wicket_pin, HIGH);
+        digitalWrite2(wicket_pin, HIGH);
         wicket_timer.stop();
         debugln_s("wicket closed");
     }
@@ -207,7 +209,7 @@ void loop()
     }
     if (!reed_flag)
     {
-        if (digitalRead(reed_pin) == LOW)
+        if (digitalRead2(reed_pin) == LOW)
         {
             reed_flag = true;
         }
@@ -370,7 +372,7 @@ void handleResponse()
         #if WICKET
         debugln_s("wicket opened");
         wicket_timer.begin(wicket_time);
-        digitalWrite(wicket_pin, LOW);
+        digitalWrite2(wicket_pin, LOW);
         #endif //WICKET
 
         #if REED_SWITCH

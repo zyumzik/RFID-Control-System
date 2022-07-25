@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <DIO2.h>
 
 class WiegandSignal
 {
