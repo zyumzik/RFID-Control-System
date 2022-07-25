@@ -6,7 +6,6 @@
 */
 
 #include <Arduino.h>
-#include <ArduinoUniqueID.h>
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -186,20 +185,6 @@ void setup()
         0
     );
     w_timer.begin(w_delay);
-
-    // unique id
-    UniqueID8dump(Serial);
-	Serial.print("UniqueID: ");
-	for (size_t i = 0; i < 8; i++)
-	{
-		if (UniqueID8[i] < 0x10)
-			Serial.print("0");
-		Serial.print(UniqueID8[i], HEX);
-		Serial.print(" ");
-	}
-	Serial.println();
-
-
 }
 
 void loop()
