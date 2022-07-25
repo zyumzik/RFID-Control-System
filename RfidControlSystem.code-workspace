@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"name": "ArduinoNanoReader",
+			"path": "ArduinoNanoReader"
+		},
+		{
+			"name": "ArduinoUnoEthernetSender",
+			"path": "ArduinoUnoEthernetSender"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"streambuf": "cpp",
+			"functional": "cpp",
+			"istream": "cpp"
+		}
+	},
+	"extensions": {
+		"recommendations": [
+			"platformio.platformio-ide"
+		]
+	}
+}
