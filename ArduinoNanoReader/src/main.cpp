@@ -44,12 +44,12 @@ char debug_buffer[64];
 
 #pragma region GLOBAL_SETTINGS
 
-#define         program_version "0.8.5"
+#define         program_version "0.9.0"
 #define         serial_baud     115200          // debug serial baud speed
 #define         broadcast_id    999             // id for receiving broadcast messages
 #define         handle_delay    0               // handle received response delay (for skipping default wiegand blink and beep)
 
-unsigned long   device_id       = 803;          // unique ID of reader device
+unsigned long   device_id       = 801;          // unique ID of reader device
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
