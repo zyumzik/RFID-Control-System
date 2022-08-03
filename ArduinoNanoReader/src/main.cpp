@@ -204,15 +204,16 @@ void loop()
     #if REED_SWITCH
     if (reed_timer.update())
     {
-        reed_flag = false;
-        reed_timer.stop();
-    }
-    if (!reed_flag)
-    {
-        if (digitalRead2(reed_pin) == LOW)
+        if (digitalRead2(reed_pin) == HIGH)
         {
-            reed_flag = true;
-        }
+            reed_flag = false;
+            reed_timer.stop();
+        }    
+    }
+    if (digitalRead2(reed_pin) == LOW)
+    {
+        reed_flag = true;
+        reed_timer.stop();
     }
     #endif //REED_SWITCH
 
