@@ -44,7 +44,7 @@ char debug_buffer[64];
 
 #pragma region GLOBAL_SETTINGS
 
-#define         program_version "0.8.5"
+#define         program_version "0.9.0"
 #define         serial_baud     115200          // debug serial baud speed
 #define         broadcast_id    999             // id for receiving broadcast messages
 #define         handle_delay    0               // handle received response delay (for skipping default wiegand blink and beep)
