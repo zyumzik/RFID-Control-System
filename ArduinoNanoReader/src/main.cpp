@@ -6,7 +6,7 @@
 */
 
 #include <Arduino.h>
-#include <FDIO.h>
+#include <DIO2.h> 
 #include <EasyTransfer.h>
 #include <EEPROM.h>
 #include <Message.h>
@@ -49,7 +49,7 @@ char debug_buffer[64];
 #define         broadcast_id    999             // id for receiving broadcast messages
 #define         handle_delay    0               // handle received response delay (for skipping default wiegand blink and beep)
 
-unsigned long   device_id       = 801;          // unique ID of reader device
+unsigned long   device_id       = 803;          // unique ID of reader device
 EasyTransfer    easy_transfer;                  // object for exchanging data using RS485
 Message         message;                        // exchangeable object for EasyTransfer
 bool            ethernet_flag   = true;         // flag of ethernet connection (true if connection established)
@@ -149,20 +149,20 @@ void setup()
     clearMemory();
     saveDeviceId(0, NEW_DEV_ID);
     #endif //SET_DEV_ID    
-    Serial.print(dRead(10));
+
     #if WICKET
-    pMode(wicket_pin, OUTPUT);
+    pinMode2(wicket_pin, OUTPUT);
     #endif //WICKET
 
     #if REED_SWITCH
-    pMode(reed_pin, INPUT_PULLUP);
+    pinMode2(reed_pin, INPUT_PULLUP);
     #endif //REED_SWITCH
 
     //device_id = loadDeviceId(0);  // defined in global settings
 
     wiegand.begin(w_rx_pin, w_tx_pin);
-    pMode(w_zum_pin, OUTPUT);
-    pMode(w_led_pin, OUTPUT);
+    pinMode2(w_zum_pin, OUTPUT);
+    pinMode2(w_led_pin, OUTPUT);
 
     rs485.begin(rs_baud);
     easy_transfer.begin(details(message), &rs485);
@@ -191,14 +191,11 @@ void setup()
 
 void loop()
 {
-    while (true)  // makes code a bit faster
-    {
-
     // wicket close
     #if WICKET
     if (wicket_timer.update())
     {
-        dWrite(wicket_pin, HIGH);
+        digitalWrite2(wicket_pin, HIGH);
         wicket_timer.stop();
         debugln_s("wicket closed");
     }
@@ -212,7 +209,7 @@ void loop()
     }
     if (!reed_flag)
     {
-        if (dRead(reed_pin) == LOW)
+        if (digitalRead2(reed_pin) == LOW)
         {
             reed_flag = true;
         }
@@ -270,8 +267,6 @@ void loop()
             }
         }
     }
-
-    }  // while
 }
 
 #pragma region F_DESCRIPTION
@@ -377,7 +372,7 @@ void handleResponse()
         #if WICKET
         debugln_s("wicket opened");
         wicket_timer.begin(wicket_time);
-        dWrite(wicket_pin, LOW);
+        digitalWrite2(wicket_pin, LOW);
         #endif //WICKET
 
         #if REED_SWITCH
