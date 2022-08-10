@@ -20,9 +20,9 @@ access. It was main principles of work, you can find more details in code or con
 
 Code written by me:
 
-[ArduinoNanoReader code](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/main.cpp)
+[ArduinoNanoReader (slave) code](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/main.cpp)
 
-[ArduinoUnoEthernetSender code](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoUnoEthernetSender/src/main.cpp)
+[ArduinoUnoEthernetSender (master) code](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoUnoEthernetSender/src/main.cpp)
 
 [Message class](https://github.com/zyumzik/RFID-Control-System/blob/main/ArduinoNanoReader/src/Message.h)
 
